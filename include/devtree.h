@@ -9,11 +9,14 @@
 
 extern APTR DeviceTreeBase;
 
-uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells);
-ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BOOL check_parent);
+int DT_Init();
+
+APTR DT_FindByPHandle(APTR key, ULONG phandle);
+CONST_STRPTR DT_GetAlias(CONST_STRPTR alias);
+
 APTR DT_GetBaseAddress(CONST_STRPTR alias);
 APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias);
-CONST_STRPTR DT_GetAlias(CONST_STRPTR alias);
-int DT_Init();
+ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BOOL check_parent);
+uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells);
 
 #endif // DEV_TREE_H

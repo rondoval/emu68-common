@@ -139,6 +139,26 @@ CONST_STRPTR DT_GetAlias(CONST_STRPTR alias)
 	return NULL;
 }
 
+APTR DT_FindByPHandle(APTR key, ULONG phandle)
+{
+	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
+
+	if (p && *(ULONG *)DT_GetPropValue(p) == phandle)
+	{
+		return key;
+	}
+	else
+	{
+		for (APTR c = DT_GetChild(key, NULL); c; c = DT_GetChild(key, c))
+		{
+			APTR found = DT_FindByPHandle(c, phandle);
+			if (found)
+				return found;
+		}
+	}
+	return NULL;
+}
+
 int DT_Init()
 {
 	DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");

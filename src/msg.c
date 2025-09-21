@@ -7,9 +7,6 @@
 #include <compat.h>
 #include <debug.h>
 
-#define __ALIGN_MASK(x,mask)	(((x)+(mask))&~(mask))
-#define ALIGN(x,a)		__ALIGN_MASK((x),(typeof(x))(a)-1)
-
 #define ROUND(a, b)		(((a) + (b) - 1) & ~((b) - 1))
 
 #define PAD_COUNT(s, pad) (((s) - 1) / (pad) + 1)

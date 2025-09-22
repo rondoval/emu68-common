@@ -247,7 +247,7 @@ int bcm2711_notify_vl805_reset(void)
 	ret = bcm2835_mbox_call_prop(BCM2835_MBOX_PROP_CHAN,
 				     &msg_notify_vl805_reset->hdr);
 	if (ret) {
-		Kprintf("[mailbox] Failed to load vl805's firmware, %d\n", ret);
+		Kprintf("[mailbox] Failed to load vl805's firmware, %ld\n", ret);
 		return -EIO;
 	}
 

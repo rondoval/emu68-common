@@ -341,7 +341,7 @@ static inline void out_le16(volatile UWORD *addr, UWORD val)
 	readx_poll_timeout(readl, addr, val, cond, timeout_us)
 
 #define readx_poll_timeout(op, addr, val, cond, timeout_us) \
-	read_poll_timeout(op, val, cond, FALSE, timeout_us, addr)
+	read_poll_timeout(op, val, cond, 0, timeout_us, addr)
 
 #define time_after(a, b) ((LONG)((b) - (a)) < 0)
 

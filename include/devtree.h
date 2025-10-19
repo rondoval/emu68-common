@@ -18,5 +18,6 @@ APTR DT_GetBaseAddress(CONST_STRPTR alias);
 APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias);
 ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BOOL check_parent);
 uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells);
+WORD DT_TranslateAddress(APTR *address, APTR node);
 
 #endif // DEV_TREE_H

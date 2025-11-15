@@ -34,8 +34,8 @@ typedef uint16_t __le16;
 typedef uint8_t __le8;
 
 typedef ULONG dma_addr_t;
-//typedef ULONG size_t;
-// typedef u64 size_t; //TODO remove once pcie.library is fixed
+// typedef ULONG size_t;
+//  typedef u64 size_t; //TODO remove once pcie.library is fixed
 
 #define get_unaligned(ptr) (*(ptr))
 #define put_unaligned(val, ptr) (*(ptr) = (val))
@@ -48,6 +48,7 @@ typedef ULONG dma_addr_t;
 
 #define SZ_1M 0x00100000
 #define SZ_64M 0x04000000
+#define SZ_4G 0x100000000ULL
 
 #define DIV_ROUND_UP(n, d) (((n) + (d) - 1) / (d))
 

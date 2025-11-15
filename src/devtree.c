@@ -159,6 +159,50 @@ APTR DT_FindByPHandle(APTR key, ULONG phandle)
 	return NULL;
 }
 
+int DT_GetInterrupt(APTR key, ULONG index)
+{
+	/* Get interrupt information
+	 * We need to find the interrupt-parent's #interrupt-cells to parse the interrupts property correctly.
+	 * We're looking for two interrupts: one for TX/RX events, one for link changes.
+	 */
+	APTR root = DT_OpenKey((CONST_STRPTR) "/");
+	APTR interrupt_parent = DT_FindByPHandle(root, DT_GetPropertyValueULONG(root, "interrupt-parent", 0, TRUE));
+	if(interrupt_parent == NULL)
+	{
+		Kprintf("[devtree] %s: Failed to find interrupt-parent\n", __func__);
+		DT_CloseKey(root);
+		return -1;
+	}
+	const ULONG interrupt_cells = DT_GetPropertyValueULONG(interrupt_parent, "#interrupt-cells", 1, FALSE);
+	
+	APTR prop = DT_FindProperty(key, (CONST_STRPTR) "interrupts");
+	if (prop == NULL)
+	{
+		Kprintf("[devtree] %s: Failed to find interrupts property\n", __func__);
+		return -1;
+	}
+
+	const ULONG *interrupts = DT_GetPropValue(prop);
+	const ULONG len = DT_GetPropLen(prop);
+
+
+	if (len / 4 < (index + 1) * interrupt_cells)
+	{
+		Kprintf("[devtree] %s: Interrupt index out of range\n", __func__);
+		return -1;
+	}
+
+	ULONG *ptr = interrupts + index * interrupt_cells;
+
+	ULONG irq = DT_GetNumber(ptr, 2);
+	ULONG type = DT_GetNumber(ptr + 2, 1);
+	Kprintf("[devtree] %s: Found interrupt: irq=%lu type=%lu\n", __func__, irq, type);
+
+	DT_CloseKey(root);
+
+	return irq;
+}
+
 int DT_Init()
 {
 	DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");

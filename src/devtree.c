@@ -192,7 +192,7 @@ int DT_GetInterrupt(APTR key, ULONG index)
 		return -1;
 	}
 
-	ULONG *ptr = interrupts + index * interrupt_cells;
+	const ULONG *ptr = interrupts + index * interrupt_cells;
 
 	ULONG irq = DT_GetNumber(ptr, 2);
 	ULONG type = DT_GetNumber(ptr + 2, 1);

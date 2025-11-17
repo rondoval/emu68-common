@@ -18,6 +18,8 @@
 #define EPROTO 12
 #define EEXIST 13
 #define ENOTSUPP 14
+#define ENOSPC 15
+#define ERANGE 16
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -234,6 +236,13 @@ static inline __attribute__((const)) int __ilog2_u64(u64 n)
 																	   : 1)    \
 		: (sizeof(n) <= 4) ? __ilog2_u32(n)                                 \
 						   : __ilog2_u64(n))
+
+
+#define __bf_shf(x) (__builtin_ffsll(x) - 1)
+#define FIELD_GET(_mask, _reg)										\
+	({																\
+		(typeof(_mask)) ( ((_reg) & (_mask)) >> __bf_shf(_mask));	\
+	})
 
 inline u64 LE64(u64 x) { return __builtin_bswap64(x); }
 

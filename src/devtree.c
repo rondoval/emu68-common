@@ -196,7 +196,7 @@ int DT_GetInterrupt(APTR key, ULONG index)
 
 	ULONG irq = DT_GetNumber(ptr, 2);
 	ULONG type = DT_GetNumber(ptr + 2, 1);
-	Kprintf("[devtree] %s: Found interrupt: irq=%lu type=%lu\n", __func__, irq, type);
+	Kprintf("[devtree] %s: Found interrupt: irq=%lu flags=%lx\n", __func__, irq, type);
 
 	DT_CloseKey(root);
 

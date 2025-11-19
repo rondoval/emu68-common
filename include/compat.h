@@ -36,8 +36,6 @@ typedef uint16_t __le16;
 typedef uint8_t __le8;
 
 typedef ULONG dma_addr_t;
-// typedef ULONG size_t;
-//  typedef u64 size_t; //TODO remove once pcie.library is fixed
 
 #define get_unaligned(ptr) (*(ptr))
 #define put_unaligned(val, ptr) (*(ptr) = (val))

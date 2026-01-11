@@ -236,10 +236,20 @@ static inline __attribute__((const)) int __ilog2_u64(u64 n)
 						   : __ilog2_u64(n))
 
 
+static inline ULONG __roundup_pow_of_two(ULONG n)
+{
+	return 1UL << fls(n - 1);
+}
+
 #define __bf_shf(x) (__builtin_ffsll(x) - 1)
 #define FIELD_GET(_mask, _reg)										\
 	({																\
 		(typeof(_mask)) ( ((_reg) & (_mask)) >> __bf_shf(_mask));	\
+	})
+
+#define FIELD_PREP(_mask, _val)						\
+	({								\
+		((typeof(_mask))(_val) << __bf_shf(_mask)) & (_mask);	\
 	})
 
 inline u64 LE64(u64 x) { return __builtin_bswap64(x); }
@@ -301,27 +311,27 @@ inline static ULONG rounddown(ULONG x, ULONG y)
 static inline ULONG in_le32(volatile ULONG *addr)
 {
 	ULONG val = LE32(*(volatile ULONG *)addr);
-	// asm volatile("nop");
+	asm volatile("nop");
 	return val;
 }
 
 static inline void out_le32(volatile ULONG *addr, ULONG val)
 {
 	*(volatile ULONG *)addr = LE32(val);
-	// asm volatile("nop");
+	asm volatile("nop");
 }
 
 static inline UWORD in_le16(volatile UWORD *addr)
 {
 	UWORD val = LE16(*(volatile UWORD *)addr);
-	// asm volatile("nop");
+	asm volatile("nop");
 	return val;
 }
 
 static inline void out_le16(volatile UWORD *addr, UWORD val)
 {
 	*(volatile UWORD *)addr = LE16(val);
-	// asm volatile("nop");
+	asm volatile("nop");
 }
 
 #define clrbits_32(addr, clear) clrbits(le32, addr, clear)

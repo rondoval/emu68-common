@@ -37,9 +37,6 @@ typedef uint8_t __le8;
 
 typedef ULONG dma_addr_t;
 
-#define get_unaligned(ptr) (*(ptr))
-#define put_unaligned(val, ptr) (*(ptr) = (val))
-
 #define ARCH_DMA_MINALIGN 64
 #define ARCH_DMA_MINALIGN_MASK (ARCH_DMA_MINALIGN - 1)
 

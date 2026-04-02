@@ -2,6 +2,7 @@
 #ifndef _COMPAT_H
 #define _COMPAT_H
 
+#include <stdarg.h>
 #include <exec/types.h>
 
 #define EINVAL 1
@@ -18,6 +19,8 @@
 #define EPROTO 12
 #define EEXIST 13
 #define ENOTSUPP 14
+#define ENOSPC 15
+#define ERANGE 16
 
 typedef uint64_t u64;
 typedef uint32_t u32;
@@ -34,11 +37,6 @@ typedef uint16_t __le16;
 typedef uint8_t __le8;
 
 typedef ULONG dma_addr_t;
-// typedef ULONG size_t;
-//  typedef u64 size_t; //TODO remove once pcie.library is fixed
-
-#define get_unaligned(ptr) (*(ptr))
-#define put_unaligned(val, ptr) (*(ptr) = (val))
 
 #define ARCH_DMA_MINALIGN 64
 #define ARCH_DMA_MINALIGN_MASK (ARCH_DMA_MINALIGN - 1)
@@ -76,6 +74,8 @@ APTR AllocVecPooled(APTR poolHeader, ULONG size);
 void FreeVecPooled(APTR poolHeader, APTR ptr);
 void *memalign(APTR poolHeader, ULONG align, ULONG size);
 void memalign_free(APTR poolHeader, void *ptr);
+LONG _VSNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, va_list args);
+LONG _SNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, ...);
 
 /**
  * upper_32_bits - return bits 32-63 of a number
@@ -235,6 +235,23 @@ static inline __attribute__((const)) int __ilog2_u64(u64 n)
 		: (sizeof(n) <= 4) ? __ilog2_u32(n)                                 \
 						   : __ilog2_u64(n))
 
+
+static inline ULONG __roundup_pow_of_two(ULONG n)
+{
+	return 1UL << fls(n - 1);
+}
+
+#define __bf_shf(x) (__builtin_ffsll(x) - 1)
+#define FIELD_GET(_mask, _reg)										\
+	({																\
+		(typeof(_mask)) ( ((_reg) & (_mask)) >> __bf_shf(_mask));	\
+	})
+
+#define FIELD_PREP(_mask, _val)						\
+	({								\
+		((typeof(_mask))(_val) << __bf_shf(_mask)) & (_mask);	\
+	})
+
 inline u64 LE64(u64 x) { return __builtin_bswap64(x); }
 
 inline ULONG LE32(ULONG x) { return __builtin_bswap32(x); }
@@ -242,6 +259,7 @@ inline ULONG LE32(ULONG x) { return __builtin_bswap32(x); }
 inline UWORD LE16(UWORD x) { return __builtin_bswap16(x); }
 
 #define cpu_to_le16(x) (((x) & 0xff) << 8 | ((x) & 0xff00) >> 8)
+#define cpu_to_le32(x) (((x) & 0xff) << 24 | ((x) & 0xff00) << 8 | ((x) & 0xff0000) >> 8 | ((x) & 0xff000000) >> 24)
 
 // TODO get the address out of device tree
 #define get_time() (LE32(*(volatile ULONG *)0xf2003004))
@@ -294,27 +312,27 @@ inline static ULONG rounddown(ULONG x, ULONG y)
 static inline ULONG in_le32(volatile ULONG *addr)
 {
 	ULONG val = LE32(*(volatile ULONG *)addr);
-	// asm volatile("nop");
+	asm volatile("nop");
 	return val;
 }
 
 static inline void out_le32(volatile ULONG *addr, ULONG val)
 {
 	*(volatile ULONG *)addr = LE32(val);
-	// asm volatile("nop");
+	asm volatile("nop");
 }
 
 static inline UWORD in_le16(volatile UWORD *addr)
 {
 	UWORD val = LE16(*(volatile UWORD *)addr);
-	// asm volatile("nop");
+	asm volatile("nop");
 	return val;
 }
 
 static inline void out_le16(volatile UWORD *addr, UWORD val)
 {
 	*(volatile UWORD *)addr = LE16(val);
-	// asm volatile("nop");
+	asm volatile("nop");
 }
 
 #define clrbits_32(addr, clear) clrbits(le32, addr, clear)

@@ -2,6 +2,7 @@
 #ifndef _COMPAT_H
 #define _COMPAT_H
 
+#include <stdarg.h>
 #include <exec/types.h>
 
 #define EINVAL 1
@@ -73,6 +74,8 @@ APTR AllocVecPooled(APTR poolHeader, ULONG size);
 void FreeVecPooled(APTR poolHeader, APTR ptr);
 void *memalign(APTR poolHeader, ULONG align, ULONG size);
 void memalign_free(APTR poolHeader, void *ptr);
+LONG _VSNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, va_list args);
+LONG _SNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, ...);
 
 /**
  * upper_32_bits - return bits 32-63 of a number
@@ -256,6 +259,7 @@ inline ULONG LE32(ULONG x) { return __builtin_bswap32(x); }
 inline UWORD LE16(UWORD x) { return __builtin_bswap16(x); }
 
 #define cpu_to_le16(x) (((x) & 0xff) << 8 | ((x) & 0xff00) >> 8)
+#define cpu_to_le32(x) (((x) & 0xff) << 24 | ((x) & 0xff00) << 8 | ((x) & 0xff0000) >> 8 | ((x) & 0xff000000) >> 24)
 
 // TODO get the address out of device tree
 #define get_time() (LE32(*(volatile ULONG *)0xf2003004))

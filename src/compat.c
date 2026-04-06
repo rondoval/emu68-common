@@ -111,3 +111,23 @@ LONG _SNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, ...)
 
     return required;
 }
+
+LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len)
+{
+    if (len <= 0)
+        return 0;
+
+    while (len-- > 0)
+    {
+        UBYTE c1 = *s1 ? *s1++ : 0;
+        UBYTE c2 = *s2 ? *s2++ : 0;
+        if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
+        if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+        if (c1 != c2)
+            return (LONG)c1 - (LONG)c2;
+        if (c1 == 0) // both zero, end of both strings
+            break;
+    }
+    return 0;
+}
+

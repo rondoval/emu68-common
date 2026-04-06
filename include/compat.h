@@ -76,6 +76,7 @@ void *memalign(APTR poolHeader, ULONG align, ULONG size);
 void memalign_free(APTR poolHeader, void *ptr);
 LONG _VSNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, va_list args);
 LONG _SNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, ...);
+LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len);
 
 /**
  * upper_32_bits - return bits 32-63 of a number

@@ -1,65 +1,40 @@
-// SPDX-License-Identifier: GPL-2.0+
-/*
- * (C) Copyright 2012 Stephen Warren
- */
-
-#include <mbox.h>
 #include <compat.h>
 #include <debug.h>
 
-#define ROUND(a, b)		(((a) + (b) - 1) & ~((b) - 1))
+#ifdef __INTELLISENSE__
+#include <clib/mailbox_protos.h>
+#else
+#include <proto/mailbox.h>
+#endif
 
-#define PAD_COUNT(s, pad) (((s) - 1) / (pad) + 1)
-#define PAD_SIZE(s, pad) (PAD_COUNT(s, pad) * pad)
+#define MAILBOX_PROP_REQ_CODE 0x00000000UL
+#define MAILBOX_PROP_RESP_CODE_SUCCESS 0x80000000UL
+#define MAILBOX_TAG_NOTIFY_XHCI_RESET 0x00030058UL
 
-#define ALLOC_ALIGN_BUFFER_PAD(type, name, size, align, pad)		\
-	char __##name[ROUND(PAD_SIZE((size) * sizeof(type), pad), align)  \
-		      + (align - 1)];					\
-									\
-	type *name = (type *)ALIGN((uintptr_t)__##name, align)
-
-#define ALLOC_ALIGN_BUFFER(type, name, size, align)		\
-	ALLOC_ALIGN_BUFFER_PAD(type, name, size, align, 1)
-
-#define ALLOC_CACHE_ALIGN_BUFFER(type, name, size)			\
-	ALLOC_ALIGN_BUFFER(type, name, size, ARCH_DMA_MINALIGN)
-
-struct msg_notify_vl805_reset {
-	struct bcm2835_mbox_hdr hdr;
-	struct bcm2835_mbox_tag_pci_dev_addr dev_addr;
-	ULONG end_tag;
-};
-
-/*
- * On the Raspberry Pi 4, after a PCI reset, VL805's (the xHCI chip) firmware
- * may either be loaded directly from an EEPROM or, if not present, by the
- * SoC's VideoCore. This informs VideoCore that VL805 needs its firmware
- * loaded.
- */
+/* Ask VideoCore to reload VL805 firmware after PCI reset. */
 int bcm2711_notify_vl805_reset(void)
 {
-	ALLOC_CACHE_ALIGN_BUFFER(struct msg_notify_vl805_reset,
-				 msg_notify_vl805_reset, 1);
-	int ret;
+	APTR MailboxBase = OpenResource((CONST_STRPTR) "mailbox.resource");
+	if (!MailboxBase)
+	{
+		Kprintf("[mailbox] Failed to open mailbox.resource\n");
+		return -EIO;
+	}
 
-	BCM2835_MBOX_INIT_HDR(msg_notify_vl805_reset);
-	BCM2835_MBOX_INIT_TAG(&msg_notify_vl805_reset->dev_addr,
-			      NOTIFY_XHCI_RESET);
+	ULONG command[] = {
+		7 * sizeof(ULONG), /* buffer size */
+		MAILBOX_PROP_REQ_CODE, /* request code */
+		MAILBOX_TAG_NOTIFY_XHCI_RESET, /* tag id */
+		sizeof(ULONG), /* value buffer size */
+		sizeof(ULONG), /* value length */
+		0x100000, /* Hardwired RPi4 VL805 PCI address. */
+		0, /* end tag */
+	};
 
-	/*
-	 * The pci device address is expected like this:
-	 *
-	 *   PCI_BUS << 20 | PCI_SLOT << 15 | PCI_FUNC << 12
-	 *
-	 * But since RPi4's PCIe setup is hardwired, we know the address in
-	 * advance.
-	 */
-	msg_notify_vl805_reset->dev_addr.body.req.dev_addr = 0x100000;
-
-	ret = bcm2835_mbox_call_prop(BCM2835_MBOX_PROP_CHAN,
-				     &msg_notify_vl805_reset->hdr);
-	if (ret) {
-		Kprintf("[mailbox] Failed to load vl805's firmware, %ld\n", ret);
+	MB_RawCommand(command);
+	if (command[0] == 0xffffffff || command[1] != MAILBOX_PROP_RESP_CODE_SUCCESS)
+	{
+		Kprintf("[mailbox] Failed to load vl805's firmware, code=0x%08lx\n", command[1]);
 		return -EIO;
 	}
 

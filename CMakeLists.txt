@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.14.0)
 project(common VERSION 1.1.0)
 
+find_package(devicetree CONFIG REQUIRED)
+
 # Set default install prefix to ./install subdirectory
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Install path" FORCE)
@@ -17,6 +19,7 @@ target_include_directories(common
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
 )
+target_link_libraries(common PUBLIC devicetree::devicetree)
 
 install(TARGETS common
 	EXPORT Emu68CommonTargets

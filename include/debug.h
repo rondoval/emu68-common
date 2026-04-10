@@ -8,6 +8,10 @@
 #ifdef __INTELLISENSE__
 #include <clib/exec_protos.h>
 #else
+#ifndef EXEC_BASE_NAME
+#define __NOLIBBASE__
+#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
+#endif
 #include <proto/exec.h>
 #endif
 

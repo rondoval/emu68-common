@@ -7,10 +7,6 @@
 #include <proto/devicetree.h>
 #endif
 
-extern APTR DeviceTreeBase;
-
-int DT_Init();
-
 APTR DT_FindByPHandle(APTR key, ULONG phandle);
 CONST_STRPTR DT_GetAlias(CONST_STRPTR alias);
 

@@ -2,7 +2,7 @@
 
 Common support library used by Emu68 AmigaOS drivers.
 
-This package provides shared helper code such as debug output, formatted printing, mailbox helpers, GPIO helpers, and device-tree wrapper utilities.
+This package provides shared helper code such as debug output, formatted printing, GPIO helpers, and device-tree wrapper utilities.
 
 ## Dependencies
 
@@ -17,8 +17,8 @@ Recommended workflow: install dependencies and this package into one shared pref
 ```sh
 cmake -S . -B build \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.cmake \
-  -DCMAKE_PREFIX_PATH=/path/to/emu68-sdk \
-  -DCMAKE_INSTALL_PREFIX=/path/to/emu68-sdk
+  -DCMAKE_PREFIX_PATH=/path/to/emu68-driver-stack \
+  -DCMAKE_INSTALL_PREFIX=/path/to/emu68-driver-stack
 cmake --build build
 cmake --install build
 ```

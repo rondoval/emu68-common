@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.14.0)
 project(common VERSION 1.2.0)
 
 find_package(devicetree CONFIG REQUIRED)
-find_package(mailbox CONFIG REQUIRED)
 
 # Set default install prefix to ./install subdirectory
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -19,8 +18,6 @@ target_include_directories(common
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
-	PRIVATE
-		$<TARGET_PROPERTY:mailbox::mailbox,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_link_libraries(common PUBLIC devicetree::devicetree)
 

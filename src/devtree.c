@@ -2,19 +2,17 @@
 #ifdef __INTELLISENSE__
 #include <clib/exec_protos.h>
 #include <clib/devicetree_protos.h>
-#include <clib/utility_protos.h>
 #else
+#define __NOLIBBASE__
+#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #include <proto/devicetree.h>
-#include <proto/utility.h>
 #endif
 
 #include <exec/types.h>
 
 #include <debug.h>
 #include <devtree.h>
-
-APTR DeviceTreeBase;
 
 uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells)
 {
@@ -29,6 +27,7 @@ uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells)
 
 ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BOOL check_parent)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	ULONG ret = def_val;
 
 	while (key != NULL)
@@ -51,6 +50,7 @@ ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BO
 
 WORD DT_TranslateAddress(APTR *address, APTR node)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	const ULONG *ranges = DT_GetPropValue(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
 	const ULONG len = DT_GetPropLen(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
 
@@ -80,6 +80,7 @@ WORD DT_TranslateAddress(APTR *address, APTR node)
 
 APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey(alias);
 	if (key == NULL)
 	{
@@ -98,6 +99,7 @@ APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias)
 
 APTR DT_GetBaseAddress(CONST_STRPTR alias)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey(alias);
 	if (key == NULL)
 	{
@@ -120,6 +122,7 @@ APTR DT_GetBaseAddress(CONST_STRPTR alias)
 
 CONST_STRPTR DT_GetAlias(CONST_STRPTR alias)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey((CONST_STRPTR) "/aliases");
 	if (key == NULL)
 	{
@@ -141,6 +144,7 @@ CONST_STRPTR DT_GetAlias(CONST_STRPTR alias)
 
 APTR DT_FindByPHandle(APTR key, ULONG phandle)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
 
 	if (p && *(ULONG *)DT_GetPropValue(p) == phandle)
@@ -161,6 +165,7 @@ APTR DT_FindByPHandle(APTR key, ULONG phandle)
 
 int DT_GetInterrupt(APTR key, ULONG index)
 {
+	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	/* Get interrupt information
 	 * We need to find the interrupt-parent's #interrupt-cells to parse the interrupts property correctly.
 	 * We're looking for two interrupts: one for TX/RX events, one for link changes.
@@ -201,15 +206,4 @@ int DT_GetInterrupt(APTR key, ULONG index)
 	DT_CloseKey(root);
 
 	return irq;
-}
-
-int DT_Init()
-{
-	DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	if (!DeviceTreeBase)
-	{
-		Kprintf("[devtree] %s: Failed to open devicetree.resource\n", __func__);
-		return -1;
-	}
-	return 0;
 }

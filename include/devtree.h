@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+ */
 #ifndef DEV_TREE_H
 #define DEV_TREE_H
 

@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <bcm_gpio.h>
-#include <compat.h>
+#include <iomem.h>
 
 void gpioSetPull(tGpioRegs *pGpio, UBYTE ubIndex, tGpioPull ePull)
 {
@@ -14,7 +14,7 @@ void gpioSetPull(tGpioRegs *pGpio, UBYTE ubIndex, tGpioPull ePull)
 	ULONG ulClearMask = ~(0b11 << ubRegShift);
 	ULONG ulWriteMask = ePull << ubRegShift;
 
-	writel((readl(&pGpio->GPIO_PUP_PDN_CNTRL_REG[ubRegIndex]) & ulClearMask) | ulWriteMask, &pGpio->GPIO_PUP_PDN_CNTRL_REG[ubRegIndex]);
+	mmio_write32((mmio_read32(&pGpio->GPIO_PUP_PDN_CNTRL_REG[ubRegIndex]) & ulClearMask) | ulWriteMask, &pGpio->GPIO_PUP_PDN_CNTRL_REG[ubRegIndex]);
 }
 
 void gpioSetAlternate(tGpioRegs *pGpio, UBYTE ubIndex, tGpioAlternativeFunction eAlternativeFunction)
@@ -25,7 +25,7 @@ void gpioSetAlternate(tGpioRegs *pGpio, UBYTE ubIndex, tGpioAlternativeFunction 
 	ULONG ulClearMask = ~(0b111 << ubRegShift);
 	ULONG ulWriteMask = eAlternativeFunction << ubRegShift;
 
-	writel((readl(&pGpio->GPFSEL[ubRegIndex]) & ulClearMask) | ulWriteMask, &pGpio->GPFSEL[ubRegIndex]);
+	mmio_write32((mmio_read32(&pGpio->GPFSEL[ubRegIndex]) & ulClearMask) | ulWriteMask, &pGpio->GPFSEL[ubRegIndex]);
 }
 
 void gpioSetLevel(tGpioRegs *pGpio, UBYTE ubIndex, UBYTE ubState)
@@ -35,10 +35,10 @@ void gpioSetLevel(tGpioRegs *pGpio, UBYTE ubIndex, UBYTE ubState)
 	ULONG ulRegState = (1 << ubRegShift);
 	if (ubState)
 	{
-		writel(ulRegState, &pGpio->GPSET[ubRegIndex]);
+		mmio_write32(ulRegState, &pGpio->GPSET[ubRegIndex]);
 	}
 	else
 	{
-		writel(ulRegState, &pGpio->GPCLR[ubRegIndex]);
+		mmio_write32(ulRegState, &pGpio->GPCLR[ubRegIndex]);
 	}
 }

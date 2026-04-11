@@ -1,5 +1,6 @@
+# SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.2.0)
+project(common VERSION 1.2.0 LANGUAGES C ASM)
 
 find_package(devicetree CONFIG REQUIRED)
 
@@ -8,7 +9,7 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Install path" FORCE)
 endif()
 
-file(GLOB_RECURSE common_sources CONFIGURE_DEPENDS src/*.c)
+file(GLOB_RECURSE common_sources CONFIGURE_DEPENDS src/*.c src/*.S)
 
 add_library(common STATIC ${common_sources})
 

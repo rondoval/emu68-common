@@ -2,7 +2,7 @@
 
 ## Role
 
-- `emu68-common` is the shared support library for the stack: compat helpers, debug output, GPIO helpers, minlist helpers, and devicetree wrapper utilities.
+- `emu68-common` is the shared support library for the stack: debug output, GPIO helpers, minlist helpers, devicetree wrappers, and the local helper surface.
 - Changes here can affect multiple downstream repos, so prefer validating through `emu68-driver-stack` if public headers or shared helper semantics change.
 
 ## Build
@@ -16,9 +16,9 @@
 ## Code Handling
 
 - Prefer adding generic helpers here instead of duplicating utility code in drivers.
-- Keep `compat.h` and `compat.c` conservative: do not add libc-like helpers unless they are needed by more than one stack component.
-- When a compat helper can replace an AmigaOS library dependency, prefer the compat helper to reduce library opens in drivers.
+- When a shared helper can replace an AmigaOS library dependency, prefer the local helper if it is genuinely reused by more than one stack component.
 - Preserve public header stability where possible; downstream repos include these headers directly.
+- `emu68-common` now presents as `MPL-2.0 OR GPL-2.0+` at the repository level; preserve SPDX headers on source files when editing.
 
 ## Validation
 

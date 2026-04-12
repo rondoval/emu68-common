@@ -13,7 +13,7 @@ file(GLOB_RECURSE common_sources CONFIGURE_DEPENDS src/*.c src/*.S)
 
 add_library(common STATIC ${common_sources})
 
-target_compile_options(common PRIVATE -ffreestanding -nostdlib -nostartfiles -Os -m68040 -fomit-frame-pointer -Wall -Wno-unused-function -Wno-shift-count-overflow -DDEBUG)
+target_compile_options(common PRIVATE -ffreestanding -nostdlib -nostartfiles -Os -m68040 -fomit-frame-pointer -Wall -Wconversion -Wsign-conversion -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wno-unused-function -Wno-shift-count-overflow -DDEBUG)
 
 target_include_directories(common
 	PUBLIC

@@ -15,9 +15,9 @@
 #define SZ_64M 0x04000000
 #define SZ_4G 0x100000000ULL
 
-static inline unsigned int mask_shift(ULONG mask)
+static inline u32 mask_shift(u32 mask)
 {
-	unsigned int shift = 0;
+	u32 shift = 0;
 
 	while (mask != 0 && (mask & 1UL) == 0)
 	{
@@ -28,7 +28,7 @@ static inline unsigned int mask_shift(ULONG mask)
 	return shift;
 }
 
-static inline ULONG mask_extract(ULONG value, ULONG mask)
+static inline u32 mask_extract(u32 value, u32 mask)
 {
 	if (mask == 0)
 		return 0;
@@ -36,7 +36,7 @@ static inline ULONG mask_extract(ULONG value, ULONG mask)
 	return (value & mask) >> mask_shift(mask);
 }
 
-static inline ULONG mask_insert(ULONG value, ULONG mask)
+static inline u32 mask_insert(u32 value, u32 mask)
 {
 	if (mask == 0)
 		return 0;
@@ -44,14 +44,14 @@ static inline ULONG mask_insert(ULONG value, ULONG mask)
 	return (value << mask_shift(mask)) & mask;
 }
 
-static inline void u32_update_mask(ULONG *word, ULONG value, ULONG mask)
+static inline void u32_update_mask(u32 *word, u32 value, u32 mask)
 {
 	*word = (*word & ~mask) | mask_insert(value, mask);
 }
 
-static inline unsigned int log2_floor_u64(u64 value)
+static inline u32 log2_floor_u64(u64 value)
 {
-	unsigned int log2 = 0;
+	u32 log2 = 0;
 
 	while (value > 1)
 	{
@@ -70,28 +70,27 @@ static inline u64 round_up_pow2_u64(u64 value)
 	return 1ULL << (log2_floor_u64(value - 1) + 1);
 }
 
-static inline ULONG u64_lo32(u64 value)
+static inline u32 u64_lo32(u64 value)
 {
-	return (ULONG)value;
+	return (u32)value;
 }
 
-static inline ULONG u64_hi32(u64 value)
+static inline u32 u64_hi32(u64 value)
 {
-	return (ULONG)(value >> 32);
+	return (u32)(value >> 32);
 }
 
-static inline int min(int a, int b)
+static inline s32 min(s32 a, s32 b)
 {
 	return (a < b) ? a : b;
 }
 
-static inline int max(int a, int b)
+static inline s32 max(s32 a, s32 b)
 {
 	return (a > b) ? a : b;
 }
 
-static inline unsigned int clamp_val(unsigned int val,
-						 unsigned int min, unsigned int max)
+static inline u32 clamp_val(u32 val, u32 min, u32 max)
 {
 	if (val < min)
 		return min;
@@ -100,12 +99,12 @@ static inline unsigned int clamp_val(unsigned int val,
 	return val;
 }
 
-inline static ULONG roundup(ULONG x, ULONG y)
+inline static u32 roundup(u32 x, u32 y)
 {
 	return ((x + y - 1) / y) * y;
 }
 
-inline static ULONG rounddown(ULONG x, ULONG y)
+inline static u32 rounddown(u32 x, u32 y)
 {
 	return x - (x % y);
 }

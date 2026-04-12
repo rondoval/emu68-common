@@ -8,14 +8,16 @@
 #include <proto/devicetree.h>
 #endif
 
-APTR DT_FindByPHandle(APTR key, ULONG phandle);
+#include <types.h>
+
+APTR DT_FindByPHandle(APTR key, u32 phandle);
 CONST_STRPTR DT_GetAlias(CONST_STRPTR alias);
 
 APTR DT_GetBaseAddress(CONST_STRPTR alias);
 APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias);
-ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BOOL check_parent);
-uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells);
-WORD DT_TranslateAddress(APTR *address, APTR node);
-int DT_GetInterrupt(APTR key, ULONG index);
+u32 DT_GetPropertyValueULONG(APTR key, const char *propname, u32 def_val, BOOL check_parent);
+u64 DT_GetNumber(const u32 *ptr, u32 cells);
+s32 DT_TranslateAddress(APTR *address, APTR node);
+s32 DT_GetInterrupt(APTR key, u32 index);
 
 #endif // DEV_TREE_H

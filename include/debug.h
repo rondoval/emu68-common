@@ -36,7 +36,10 @@ static inline void PrintPistorm(char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
 	RawDoFmt((CONST_STRPTR)fmt, args, (APTR)putch, NULL);
+#pragma GCC diagnostic pop
 	va_end(args);
 }
 

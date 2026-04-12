@@ -2,82 +2,80 @@
 #ifndef _IOMEM_H
 #define _IOMEM_H
 
+#include <types.h>
 #include <byteorder.h>
 
-static inline ULONG mmio_read32_impl(const volatile void *addr)
+static inline u32 mmio_read32_impl(const volatile __le32 *addr)
 {
-	const volatile ULONG *ptr = (const volatile ULONG *)addr;
-	ULONG val = le32(*ptr);
+	u32 val = le32(*addr);
 	asm volatile("nop");
 	return val;
 }
 
-static inline void mmio_write32_impl(ULONG value, volatile void *addr)
+static inline void mmio_write32_impl(u32 value, volatile __le32 *addr)
 {
-	volatile ULONG *ptr = (volatile ULONG *)addr;
-	*ptr = le32(value);
+	*addr = le32(value);
 	asm volatile("nop");
 }
 
-static inline UWORD mmio_read16_impl(const volatile void *addr)
+static inline u16 mmio_read16_impl(const volatile __le16 *addr)
 {
-	const volatile UWORD *ptr = (const volatile UWORD *)addr;
-	UWORD val = le16(*ptr);
 	asm volatile("nop");
+	u16 val = le16(*addr);
 	return val;
 }
 
-static inline void mmio_write16_impl(UWORD value, volatile void *addr)
+static inline void mmio_write16_impl(u16 value, volatile __le16 *addr)
 {
-	volatile UWORD *ptr = (volatile UWORD *)addr;
-	*ptr = le16(value);
+	*addr = le16(value);
 	asm volatile("nop");
 }
 
-static inline UBYTE mmio_read8_impl(const volatile void *addr)
+static inline u8 mmio_read8_impl(const volatile __le8 *addr)
 {
-	return *(const volatile UBYTE *)addr;
+	asm volatile("nop");
+	return *addr;
 }
 
-static inline void mmio_write8_impl(UBYTE value, volatile void *addr)
+static inline void mmio_write8_impl(u8 value, volatile __le8 *addr)
 {
-	*(volatile UBYTE *)addr = value;
+	*addr = value;
 	asm volatile("nop");
 }
 
-#define mmio_read32(addr) mmio_read32_impl((const volatile void *)(addr))
-#define mmio_write32(value, addr) mmio_write32_impl((value), (volatile void *)(addr))
-#define mmio_read16(addr) mmio_read16_impl((const volatile void *)(addr))
-#define mmio_write16(value, addr) mmio_write16_impl((value), (volatile void *)(addr))
-#define mmio_read8(addr) mmio_read8_impl((const volatile void *)(addr))
-#define mmio_write8(value, addr) mmio_write8_impl((value), (volatile void *)(addr))
+#define mmio_read32(addr) mmio_read32_impl((const volatile __le32 *)(addr))
+#define mmio_write32(value, addr) mmio_write32_impl((value), (volatile __le32 *)(addr))
+#define mmio_read16(addr) mmio_read16_impl((const volatile __le16 *)(addr))
+#define mmio_write16(value, addr) mmio_write16_impl((value), (volatile __le16 *)(addr))
+#define mmio_read8(addr) mmio_read8_impl((const volatile __le8 *)(addr))
+#define mmio_write8(value, addr) mmio_write8_impl((value), (volatile __le8 *)(addr))
 
-static inline void mmio_update32(volatile void *addr, ULONG clear_mask, ULONG set_mask)
+static inline void mmio_update32(volatile __le32 *addr, u32 clear_mask, u32 set_mask)
 {
 	mmio_write32((mmio_read32(addr) & ~clear_mask) | set_mask, addr);
 }
 
-static inline void mmio_clear32(volatile void *addr, ULONG clear_mask)
+static inline void mmio_clear32(volatile __le32 *addr, u32 clear_mask)
 {
 	mmio_update32(addr, clear_mask, 0);
 }
 
-static inline void mmio_set32(volatile void *addr, ULONG set_mask)
+static inline void mmio_set32(volatile __le32 *addr, u32 set_mask)
 {
 	mmio_update32(addr, 0, set_mask);
 }
 
-static inline void mmio_update16(volatile void *addr, UWORD clear_mask, UWORD set_mask)
+static inline void mmio_update16(volatile __le16 *addr, u16 clear_mask, u16 set_mask)
 {
-	mmio_write16((mmio_read16(addr) & ~clear_mask) | set_mask, addr);
+	mmio_write16((u16)((mmio_read16(addr) & ~(u32)clear_mask) | (u32)set_mask), addr);
 }
 
-static inline void mmio_clear16(volatile void *addr, UWORD clear_mask)
+static inline void mmio_clear16(volatile __le16 *addr, u16 clear_mask)
 {
 	mmio_update16(addr, clear_mask, 0);
 }
 
-static inline void mmio_set16(volatile void *addr, UWORD set_mask)
+static inline void mmio_set16(volatile __le16 *addr, u16 set_mask)
 {
 	mmio_update16(addr, 0, set_mask);
 }

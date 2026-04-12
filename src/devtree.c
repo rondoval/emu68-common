@@ -14,9 +14,9 @@
 #include <debug.h>
 #include <devtree.h>
 
-uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells)
+u64 DT_GetNumber(const u32 *ptr, u32 cells)
 {
-	uint64_t value = 0;
+	u64 value = 0;
 
 	while (cells--)
 	{
@@ -25,10 +25,10 @@ uint64_t DT_GetNumber(const ULONG *ptr, ULONG cells)
 	return value;
 }
 
-ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BOOL check_parent)
+u32 DT_GetPropertyValueULONG(APTR key, const char *propname, u32 def_val, BOOL check_parent)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	ULONG ret = def_val;
+	u32 ret = def_val;
 
 	while (key != NULL)
 	{
@@ -38,7 +38,7 @@ ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BO
 		{
 			if (p != NULL || DT_GetPropLen(p) >= 4)
 			{
-				ret = *(ULONG *)DT_GetPropValue(p);
+				ret = *(u32 *)DT_GetPropValue(p);
 			}
 
 			return ret;
@@ -48,27 +48,27 @@ ULONG DT_GetPropertyValueULONG(APTR key, const char *propname, ULONG def_val, BO
 	return ret;
 }
 
-WORD DT_TranslateAddress(APTR *address, APTR node)
+s32 DT_TranslateAddress(APTR *address, APTR node)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	const ULONG *ranges = DT_GetPropValue(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
-	const ULONG len = DT_GetPropLen(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
+	const u32 *ranges = DT_GetPropValue(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
+	const u32 len = DT_GetPropLen(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
 
-	const ULONG address_cells_parent = DT_GetPropertyValueULONG(DT_GetParent(node), "#address-cells", 2, FALSE);
-	const ULONG address_cells_child = DT_GetPropertyValueULONG(node, "#address-cells", 2, FALSE);
-	const ULONG size_cells = DT_GetPropertyValueULONG(node, "#size-cells", 2, FALSE);
-	const ULONG cells_per_record = address_cells_parent + address_cells_child + size_cells;
+	const u32 address_cells_parent = DT_GetPropertyValueULONG(DT_GetParent(node), "#address-cells", 2, FALSE);
+	const u32 address_cells_child = DT_GetPropertyValueULONG(node, "#address-cells", 2, FALSE);
+	const u32 size_cells = DT_GetPropertyValueULONG(node, "#size-cells", 2, FALSE);
+	const u32 cells_per_record = address_cells_parent + address_cells_child + size_cells;
 
-	for (const ULONG *i = ranges; i < ranges + len / 4; i += cells_per_record)
+	for (const u32 *i = ranges; i < ranges + len / sizeof(u32); i += cells_per_record)
 	{
-		ULONG phys_vc4 = DT_GetNumber(i, address_cells_child);
-		ULONG phys_cpu = DT_GetNumber(i + address_cells_child, address_cells_parent);
-		ULONG size = DT_GetNumber(i + address_cells_child + address_cells_parent, size_cells);
-		KprintfH("[devtree] %s: phys_vc4=0x%08lx phys_cpu=0x%08lx size=0x%08lx\n", __func__, phys_vc4, phys_cpu, size);
+		u32 phys_vc4 = (u32)DT_GetNumber(i, address_cells_child);
+		u32 phys_cpu = (u32)DT_GetNumber(i + address_cells_child, address_cells_parent);
+		u32 size = (u32)DT_GetNumber(i + address_cells_child + address_cells_parent, size_cells);
+		KprintfH("[devtree] %s: phys_vc4=0x%08lx phys_cpu=0x%08lx size=0x%08lx\n", __func__, (ULONG)phys_vc4, (ULONG)phys_cpu, (ULONG)size);
 
-		if ((ULONG)*address >= phys_vc4 && (ULONG)*address < phys_vc4 + size)
+		if ((u32)*address >= phys_vc4 && (u32)*address < phys_vc4 + size)
 		{
-			ULONG offset = phys_cpu - phys_vc4;
+			u32 offset = phys_cpu - phys_vc4;
 			*address += offset;
 			KprintfH("[devtree] %s: Virtual address=0x%08lx\n", __func__, *address);
 			return 0;
@@ -89,7 +89,7 @@ APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias)
 	}
 
 	const APTR parent = DT_GetParent(key);
-	const ULONG address_cells_parent = DT_GetPropertyValueULONG(parent, "#address-cells", 2, FALSE);
+	const u32 address_cells_parent = DT_GetPropertyValueULONG(parent, "#address-cells", 2, FALSE);
 	APTR address = (APTR)(ULONG)DT_GetNumber(DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg")), address_cells_parent);
 	DT_TranslateAddress(&address, parent);
 	DT_CloseKey(key);
@@ -107,9 +107,9 @@ APTR DT_GetBaseAddress(CONST_STRPTR alias)
 		return NULL;
 	}
 
-	ULONG address_cells = DT_GetPropertyValueULONG(DT_GetParent(key), "#address-cells", 2, FALSE);
+	u32 address_cells = DT_GetPropertyValueULONG(DT_GetParent(key), "#address-cells", 2, FALSE);
 
-	const ULONG *reg = DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg"));
+	const u32 *reg = DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg"));
 	if (reg != NULL)
 	{
 		DT_CloseKey(key);
@@ -142,12 +142,12 @@ CONST_STRPTR DT_GetAlias(CONST_STRPTR alias)
 	return NULL;
 }
 
-APTR DT_FindByPHandle(APTR key, ULONG phandle)
+APTR DT_FindByPHandle(APTR key, u32 phandle)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
 
-	if (p && *(ULONG *)DT_GetPropValue(p) == phandle)
+	if (p && *(u32 *)DT_GetPropValue(p) == phandle)
 	{
 		return key;
 	}
@@ -163,7 +163,7 @@ APTR DT_FindByPHandle(APTR key, ULONG phandle)
 	return NULL;
 }
 
-int DT_GetInterrupt(APTR key, ULONG index)
+s32 DT_GetInterrupt(APTR key, u32 index)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	/* Get interrupt information
@@ -178,7 +178,7 @@ int DT_GetInterrupt(APTR key, ULONG index)
 		DT_CloseKey(root);
 		return -1;
 	}
-	const ULONG interrupt_cells = DT_GetPropertyValueULONG(interrupt_parent, "#interrupt-cells", 1, FALSE);
+	const u32 interrupt_cells = DT_GetPropertyValueULONG(interrupt_parent, "#interrupt-cells", 1, FALSE);
 	
 	APTR prop = DT_FindProperty(key, (CONST_STRPTR) "interrupts");
 	if (prop == NULL)
@@ -187,23 +187,23 @@ int DT_GetInterrupt(APTR key, ULONG index)
 		return -1;
 	}
 
-	const ULONG *interrupts = DT_GetPropValue(prop);
-	const ULONG len = DT_GetPropLen(prop);
+	const u32 *interrupts = DT_GetPropValue(prop);
+	const u32 len = DT_GetPropLen(prop);
 
 
-	if (len / 4 < (index + 1) * interrupt_cells)
+	if (len / sizeof(u32) < (index + 1) * interrupt_cells)
 	{
 		Kprintf("[devtree] %s: Interrupt index out of range\n", __func__);
 		return -1;
 	}
 
-	const ULONG *ptr = interrupts + index * interrupt_cells;
+	const u32 *ptr = interrupts + index * interrupt_cells;
 
-	ULONG irq = DT_GetNumber(ptr, 2);
-	ULONG type = DT_GetNumber(ptr + 2, 1);
-	Kprintf("[devtree] %s: Found interrupt: irq=%lu flags=%lx\n", __func__, irq, type);
+	u32 irq = (u32)DT_GetNumber(ptr, 2);
+	u32 type = (u32)DT_GetNumber(ptr + 2, 1);
+	Kprintf("[devtree] %s: Found interrupt: irq=%lu flags=%lx\n", __func__, (ULONG)irq, (ULONG)type);
 
 	DT_CloseKey(root);
 
-	return irq;
+	return (s32)irq;
 }

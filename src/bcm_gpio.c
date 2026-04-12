@@ -6,39 +6,37 @@
 #include <bcm_gpio.h>
 #include <iomem.h>
 
-void gpioSetPull(tGpioRegs *pGpio, UBYTE ubIndex, tGpioPull ePull)
+void gpioSetPull(tGpioRegs *pGpio, u8 index, tGpioPull ePull)
 {
-	static const UBYTE ubBitsPerGpio = 2;
-	UBYTE ubRegIndex = ubIndex / 16;
-	UBYTE ubRegShift = (ubIndex % 16) * ubBitsPerGpio;
-	ULONG ulClearMask = ~(0b11 << ubRegShift);
-	ULONG ulWriteMask = ePull << ubRegShift;
+	u32 reg_index = index / 16;
+	u32 reg_shift = ((u32)index % 16) * 2;
+	u32 clear_mask = ~((u32)0b11 << reg_shift);
+	u32 write_mask = (u32)ePull << reg_shift;
 
-	mmio_write32((mmio_read32(&pGpio->GPIO_PUP_PDN_CNTRL_REG[ubRegIndex]) & ulClearMask) | ulWriteMask, &pGpio->GPIO_PUP_PDN_CNTRL_REG[ubRegIndex]);
+	mmio_write32((mmio_read32(&pGpio->GPIO_PUP_PDN_CNTRL_REG[reg_index]) & clear_mask) | write_mask, &pGpio->GPIO_PUP_PDN_CNTRL_REG[reg_index]);
 }
 
-void gpioSetAlternate(tGpioRegs *pGpio, UBYTE ubIndex, tGpioAlternativeFunction eAlternativeFunction)
+void gpioSetAlternate(tGpioRegs *pGpio, u8 index, tGpioAlternativeFunction eAlternativeFunction)
 {
-	static const UBYTE ubBitsPerGpio = 3;
-	UBYTE ubRegIndex = ubIndex / 10;
-	UBYTE ubRegShift = (ubIndex % 10) * ubBitsPerGpio;
-	ULONG ulClearMask = ~(0b111 << ubRegShift);
-	ULONG ulWriteMask = eAlternativeFunction << ubRegShift;
+	u32 reg_index = index / 10;
+	u32 reg_shift = ((u32)index % 10) * 3;
+	u32 clear_mask = ~((u32)0b111 << reg_shift);
+	u32 write_mask = (u32)eAlternativeFunction << reg_shift;
 
-	mmio_write32((mmio_read32(&pGpio->GPFSEL[ubRegIndex]) & ulClearMask) | ulWriteMask, &pGpio->GPFSEL[ubRegIndex]);
+	mmio_write32((mmio_read32(&pGpio->GPFSEL[reg_index]) & clear_mask) | write_mask, &pGpio->GPFSEL[reg_index]);
 }
 
-void gpioSetLevel(tGpioRegs *pGpio, UBYTE ubIndex, UBYTE ubState)
+void gpioSetLevel(tGpioRegs *pGpio, u8 index, u8 state)
 {
-	UBYTE ubRegIndex = ubIndex / 32;
-	UBYTE ubRegShift = ubIndex % 32;
-	ULONG ulRegState = (1 << ubRegShift);
-	if (ubState)
+	u32 reg_index = index / 32;
+	u32 reg_shift = index % 32;
+	u32 reg_state = (u32)1 << reg_shift;
+	if (state)
 	{
-		mmio_write32(ulRegState, &pGpio->GPSET[ubRegIndex]);
+		mmio_write32(reg_state, &pGpio->GPSET[reg_index]);
 	}
 	else
 	{
-		mmio_write32(ulRegState, &pGpio->GPCLR[ubRegIndex]);
+		mmio_write32(reg_state, &pGpio->GPCLR[reg_index]);
 	}
 }

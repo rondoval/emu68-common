@@ -37,7 +37,10 @@ LONG _VSNPrintf(STRPTR buffer, ULONG bufsize, CONST_STRPTR fmt, va_list args)
 	};
 
 	if (fmt)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
 		RawDoFmt(fmt, args, (APTR)compat_printf_putch, &state);
+#pragma GCC diagnostic pop
 
 	if (buffer && bufsize)
 	{

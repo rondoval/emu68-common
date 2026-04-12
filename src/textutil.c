@@ -9,10 +9,10 @@ LONG _Stricmp(CONST_STRPTR s1, CONST_STRPTR s2)
 
 	do
 	{
-		c1 = *s1 ? *s1++ : 0;
-		c2 = *s2 ? *s2++ : 0;
-		if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
-		if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+		c1 = (UBYTE)(*s1 ? *s1++ : 0);
+		c2 = (UBYTE)(*s2 ? *s2++ : 0);
+		if (c1 >= 'a' && c1 <= 'z') c1 = (UBYTE)(c1 - 32);
+		if (c2 >= 'a' && c2 <= 'z') c2 = (UBYTE)(c2 - 32);
 		if (c1 != c2)
 			return (LONG)c1 - (LONG)c2;
 	} while (c1 != 0);
@@ -27,10 +27,10 @@ LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len)
 
 	while (len-- > 0)
 	{
-		UBYTE c1 = *s1 ? *s1++ : 0;
-		UBYTE c2 = *s2 ? *s2++ : 0;
-		if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
-		if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+		UBYTE c1 = (UBYTE)(*s1 ? *s1++ : 0);
+		UBYTE c2 = (UBYTE)(*s2 ? *s2++ : 0);
+		if (c1 >= 'a' && c1 <= 'z') c1 = (UBYTE)(c1 - 32);
+		if (c2 >= 'a' && c2 <= 'z') c2 = (UBYTE)(c2 - 32);
 		if (c1 != c2)
 			return (LONG)c1 - (LONG)c2;
 		if (c1 == 0)

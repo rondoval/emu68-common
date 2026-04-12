@@ -2,15 +2,19 @@
 #ifndef _TIMING_H
 #define _TIMING_H
 
+#include <types.h>
 #include <byteorder.h>
 #include <errors.h>
 
-#define get_time() (le32(*(volatile ULONG *)0xf2003004))
-
-inline void delay_us(ULONG us)
+static inline u32 get_time(void)
 {
-	ULONG timer = get_time();
-	ULONG end = timer + us;
+	return le32(*(volatile __le32 *)0xf2003004);
+}
+
+static inline void delay_us(u32 us)
+{
+	u32 timer = get_time();
+	u32 end = timer + us;
 
 	if (end < timer)
 	{
@@ -21,9 +25,9 @@ inline void delay_us(ULONG us)
 		asm volatile("nop");
 }
 
-static inline BOOL time_deadline_passed(ULONG now, ULONG deadline)
+static inline BOOL time_deadline_passed(u32 now, u32 deadline)
 {
-	return ((LONG)(deadline - now)) < 0;
+	return ((s32)(deadline - now)) < 0;
 }
 
 #endif

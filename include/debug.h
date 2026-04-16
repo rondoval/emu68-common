@@ -23,6 +23,8 @@
 #define KprintfH(...)
 #endif
 
+#define KASSERT(cond, msg) do { if (!(cond)) KprintfH("[kassert] " msg "\n"); } while (0)
+
 static void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
 {
 	(void)dummy;
@@ -46,6 +48,7 @@ static inline void PrintPistorm(char *fmt, ...)
 #else
 #define Kprintf(...)
 #define KprintfH(...)
+#define KASSERT(cond, msg) ((void)0)
 #endif
 
 #endif

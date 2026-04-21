@@ -172,14 +172,14 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 	 */
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
 	APTR interrupt_parent = DT_FindByPHandle(root, DT_GetPropertyValueULONG(root, "interrupt-parent", 0, TRUE));
-	if(interrupt_parent == NULL)
+	if (interrupt_parent == NULL)
 	{
 		Kprintf("[devtree] %s: Failed to find interrupt-parent\n", __func__);
 		DT_CloseKey(root);
 		return -1;
 	}
 	const u32 interrupt_cells = DT_GetPropertyValueULONG(interrupt_parent, "#interrupt-cells", 1, FALSE);
-	
+
 	APTR prop = DT_FindProperty(key, (CONST_STRPTR) "interrupts");
 	if (prop == NULL)
 	{
@@ -190,7 +190,6 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 	const u32 *interrupts = DT_GetPropValue(prop);
 	const u32 len = DT_GetPropLen(prop);
 
-
 	if (len / sizeof(u32) < (index + 1) * interrupt_cells)
 	{
 		Kprintf("[devtree] %s: Interrupt index out of range\n", __func__);
@@ -199,11 +198,38 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 
 	const u32 *ptr = interrupts + index * interrupt_cells;
 
-	u32 irq = (u32)DT_GetNumber(ptr, 2);
-	u32 type = (u32)DT_GetNumber(ptr + 2, 1);
-	Kprintf("[devtree] %s: Found interrupt: irq=%lu flags=%lx\n", __func__, (ULONG)irq, (ULONG)type);
+	const u32 interrupt_type = (u32)DT_GetNumber(ptr, 1);
+	u32 interrupt_number = (u32)DT_GetNumber(ptr + 1, 1);
+	const u32 interrupt_flags = (u32)DT_GetNumber(ptr + 2, 1);
+
+	if (interrupt_type == 0)
+		interrupt_number += 32u; // SPI
+	else if (interrupt_type == 1)
+		interrupt_number += 16u; // PPI
+
+	char *trigger;
+	switch (interrupt_flags & 0xf)
+	{
+	case 1:
+		trigger = "edge rising";
+		break;
+	case 2:
+		trigger = "edge falling";
+		break;
+	case 4:
+		trigger = "level high";
+		break;
+	case 8:
+		trigger = "level low";
+		break;
+	default:
+		trigger = "unknown";
+		break;
+	}
+
+	Kprintf("[devtree] %s: Found interrupt: irq=%lu trigger=%s\n", __func__, (ULONG)interrupt_number, trigger);
 
 	DT_CloseKey(root);
 
-	return (s32)irq;
+	return (s32)interrupt_number;
 }

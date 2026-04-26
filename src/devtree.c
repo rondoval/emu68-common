@@ -200,13 +200,14 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 
 	const u32 interrupt_type = (u32)DT_GetNumber(ptr, 1);
 	u32 interrupt_number = (u32)DT_GetNumber(ptr + 1, 1);
-	const u32 interrupt_flags = (u32)DT_GetNumber(ptr + 2, 1);
 
 	if (interrupt_type == 0)
 		interrupt_number += 32u; // SPI
 	else if (interrupt_type == 1)
 		interrupt_number += 16u; // PPI
 
+#ifdef DEBUG_HIGH
+	const u32 interrupt_flags = (u32)DT_GetNumber(ptr + 2, 1);
 	char *trigger;
 	switch (interrupt_flags & 0xf)
 	{
@@ -227,7 +228,8 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 		break;
 	}
 
-	Kprintf("[devtree] %s: Found interrupt: irq=%lu trigger=%s\n", __func__, (ULONG)interrupt_number, trigger);
+	KprintfH("[devtree] %s: Found interrupt: irq=%lu trigger=%s\n", __func__, (ULONG)interrupt_number, trigger);
+#endif
 
 	DT_CloseKey(root);
 

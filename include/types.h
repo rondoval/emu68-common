@@ -21,6 +21,9 @@ typedef uint8_t __le8;
 
 typedef ULONG dma_addr_t;
 
+#define UINT_MAX 0xffffffffu
+#define USHORT_MAX 0xffffu
+
 #ifndef likely
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x) __builtin_expect(!!(x), 1)

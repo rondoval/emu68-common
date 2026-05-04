@@ -8,6 +8,10 @@
 #ifdef __INTELLISENSE__
 #include <clib/exec_protos.h>
 #else
+#ifndef EXEC_BASE_NAME
+#define __NOLIBBASE__
+#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
+#endif
 #include <proto/exec.h>
 #endif
 
@@ -18,6 +22,8 @@
 #else
 #define KprintfH(...)
 #endif
+
+#define KASSERT(cond, msg) do { if (!(cond)) KprintfH("[kassert] " msg "\n"); } while (0)
 
 static void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
 {
@@ -32,13 +38,17 @@ static inline void PrintPistorm(char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
 	RawDoFmt((CONST_STRPTR)fmt, args, (APTR)putch, NULL);
+#pragma GCC diagnostic pop
 	va_end(args);
 }
 
 #else
 #define Kprintf(...)
 #define KprintfH(...)
+#define KASSERT(cond, msg) ((void)0)
 #endif
 
 #endif

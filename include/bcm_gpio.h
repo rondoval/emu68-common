@@ -11,7 +11,7 @@ extern "C"
 {
 #endif
 
-#include <exec/types.h>
+#include <types.h>
 
 #define PIN_RGMII_MDIO 28
 #define PIN_RGMII_MDC 29
@@ -37,34 +37,34 @@ extern "C"
 
 	typedef struct tGpioRegs
 	{
-		ULONG GPFSEL[6]; // 0x00-0x14 GPIO Function Select
-		ULONG RESERVED0;
-		ULONG GPSET[2]; // 0x1C-0x20 GPIO Pin Output Set
-		ULONG RESERVED1;
-		ULONG GPCLR[2]; // 0x28-0x2C GPIO Pin Output Clear
-		ULONG RESERVED2;
-		ULONG GPLEV[2]; // 0x34-0x38 GPIO Pin Level
-		ULONG RESERVED3;
-		ULONG GPEDS[2]; // 0x40-0x44 GPIO Pin Event Detect Status
-		ULONG RESERVED4;
-		ULONG GPREN[2]; // 0x4C-0x50 GPIO Pin Rising Edge Detect Enable
-		ULONG RESERVED5;
-		ULONG GPFEN[2]; // 0x58-0x5C GPIO Pin Falling Edge Detect Enable
-		ULONG RESERVED6;
-		ULONG GPHEN[2]; // 0x64-0x68 GPIO Pin High Detect Enable
-		ULONG RESERVED7;
-		ULONG GPLEN[2]; // 0x70-0x74 GPIO Pin Low Detect Enable
-		ULONG RESERVED8;
-		ULONG GPAREN[2]; // 0x7C-0x80 GPIO Pin Async Rising Edge Detect Enable
-		ULONG RESERVED9;
-		ULONG GPAFEN[2]; // 0x88-0x8C GPIO Pin Async Falling Edge Detect Enable
-		ULONG RESERVED10[15];
-		ULONG GPIO_PUP_PDN_CNTRL_REG[4]; // 0xe4-0xf0 GPIO Pull Up/Down Control
+		u32 GPFSEL[6]; // 0x00-0x14 GPIO Function Select
+		u32 RESERVED0;
+		u32 GPSET[2]; // 0x1C-0x20 GPIO Pin Output Set
+		u32 RESERVED1;
+		u32 GPCLR[2]; // 0x28-0x2C GPIO Pin Output Clear
+		u32 RESERVED2;
+		u32 GPLEV[2]; // 0x34-0x38 GPIO Pin Level
+		u32 RESERVED3;
+		u32 GPEDS[2]; // 0x40-0x44 GPIO Pin Event Detect Status
+		u32 RESERVED4;
+		u32 GPREN[2]; // 0x4C-0x50 GPIO Pin Rising Edge Detect Enable
+		u32 RESERVED5;
+		u32 GPFEN[2]; // 0x58-0x5C GPIO Pin Falling Edge Detect Enable
+		u32 RESERVED6;
+		u32 GPHEN[2]; // 0x64-0x68 GPIO Pin High Detect Enable
+		u32 RESERVED7;
+		u32 GPLEN[2]; // 0x70-0x74 GPIO Pin Low Detect Enable
+		u32 RESERVED8;
+		u32 GPAREN[2]; // 0x7C-0x80 GPIO Pin Async Rising Edge Detect Enable
+		u32 RESERVED9;
+		u32 GPAFEN[2]; // 0x88-0x8C GPIO Pin Async Falling Edge Detect Enable
+		u32 RESERVED10[15];
+		u32 GPIO_PUP_PDN_CNTRL_REG[4]; // 0xe4-0xf0 GPIO Pull Up/Down Control
 	} tGpioRegs;
 
-	void gpioSetPull(tGpioRegs *pGpio, UBYTE ubIndex, tGpioPull ePull);
-	void gpioSetAlternate(tGpioRegs *pGpio, UBYTE ubIndex, tGpioAlternativeFunction eAlternativeFunction);
-	void gpioSetLevel(tGpioRegs *pGpio, UBYTE ubIndex, UBYTE ubState);
+	void gpioSetPull(tGpioRegs *pGpio, u8 index, tGpioPull ePull);
+	void gpioSetAlternate(tGpioRegs *pGpio, u8 index, tGpioAlternativeFunction eAlternativeFunction);
+	void gpioSetLevel(tGpioRegs *pGpio, u8 index, u8 state);
 
 #ifdef __cplusplus
 }

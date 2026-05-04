@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+ */
 #ifndef _MINLIST_H
 #define _MINLIST_H
 

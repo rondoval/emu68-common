@@ -5,6 +5,7 @@
 #include <types.h>
 
 LONG _Stricmp(CONST_STRPTR s1, CONST_STRPTR s2);
+LONG _Strncmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len);
 LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len);
 
 #endif

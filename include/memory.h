@@ -71,6 +71,14 @@ static inline void *dma_alloc(APTR poolHeader, ULONG align, ULONG size)
 	if (align < sizeof(APTR))
 		align = sizeof(APTR);
 
+	/* A DMA buffer must own whole cache lines at BOTH ends: a partial trailing
+	 * line shared with the next pool allocation would be discarded by the
+	 * post-DMA invalidate (see the 68040.library CachePreDMA/PostDMA contract).
+	 * When the caller requests cache-line (or coarser) alignment, round the size
+	 * up to match so the tail line is private too. */
+	if (align >= DMA_ALIGN_MIN)
+		size = (size + (align - 1)) & ~(align - 1);
+
 	ULONG total = size + (align - 1) + sizeof(APTR) + sizeof(ULONG);
 	APTR raw = AllocPooled(poolHeader, total);
 	if (!raw)

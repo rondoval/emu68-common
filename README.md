@@ -2,7 +2,7 @@
 
 Common support library used by Emu68 AmigaOS drivers.
 
-This package provides shared helper code such as debug output, formatted printing, GPIO helpers, and device-tree wrapper utilities.
+This package provides shared helper code such as debug output, formatted printing, GPIO helpers, device-tree wrapper utilities, and a reset guard (`reset_guard.h`) that lets DMA-capable drivers quiesce their hardware before the Amiga resets.
 
 ## Dependencies
 

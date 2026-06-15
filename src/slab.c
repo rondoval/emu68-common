@@ -13,11 +13,14 @@
 
 #define SLAB_DEFAULT_SIZE 262144UL
 
-void slab_cache_init(struct slab_cache *cache, APTR pool,
+void slab_cache_init(struct slab_cache *cache, APTR meta_pool, struct dma_pool *dma_pool,
                      ULONG obj_size, ULONG obj_align, ULONG slab_capacity)
 {
-	if (obj_align < DMA_ALIGN_MIN)
-		obj_align = DMA_ALIGN_MIN;
+	/* DMA data must own whole cache lines; CPU-only data just needs to thread the
+	 * free list, so pointer alignment is enough. */
+	ULONG min_align = dma_pool ? DMA_ALIGN_MIN : sizeof(APTR);
+	if (obj_align < min_align)
+		obj_align = min_align;
 
 	obj_size = ALIGN_UP(obj_size, obj_align);
 
@@ -28,7 +31,8 @@ void slab_cache_init(struct slab_cache *cache, APTR pool,
 	}
 
 	cache->free_list     = NULL;
-	cache->pool          = pool;
+	cache->meta_pool     = meta_pool;
+	cache->dma_pool      = dma_pool;
 	cache->slabs         = NULL;
 	cache->obj_size      = obj_size;
 	cache->obj_align     = obj_align;
@@ -41,8 +45,11 @@ void slab_cache_destroy(struct slab_cache *cache)
 
 	while (node) {
 		struct slab_node *next = node->next;
-		dma_free(cache->pool, node->data);
-		pool_free(cache->pool, node);
+		if (cache->dma_pool)
+			dma_free(cache->dma_pool, node->data);
+		else
+			pool_free(cache->meta_pool, node->data);
+		pool_free(cache->meta_pool, node);
 		node = next;
 	}
 
@@ -52,14 +59,16 @@ void slab_cache_destroy(struct slab_cache *cache)
 
 void *slab_grow(struct slab_cache *cache)
 {
-	struct slab_node *node = pool_alloc(cache->pool, sizeof(*node));
+	struct slab_node *node = pool_alloc(cache->meta_pool, sizeof(*node));
 	if (!node)
 		return NULL;
 
 	ULONG data_size = cache->obj_size * cache->slab_capacity;
-	void *data = dma_alloc(cache->pool, cache->obj_align, data_size);
+	void *data = cache->dma_pool
+		? dma_alloc(cache->dma_pool, cache->obj_align, data_size)
+		: pool_alloc(cache->meta_pool, data_size);
 	if (!data) {
-		pool_free(cache->pool, node);
+		pool_free(cache->meta_pool, node);
 		return NULL;
 	}
 

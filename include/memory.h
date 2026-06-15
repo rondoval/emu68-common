@@ -66,41 +66,6 @@ static inline void pool_free(APTR poolHeader, APTR ptr)
 	FreePooled(poolHeader, raw, size);
 }
 
-static inline void *dma_alloc(APTR poolHeader, ULONG align, ULONG size)
-{
-	if (align < sizeof(APTR))
-		align = sizeof(APTR);
-
-	/* A DMA buffer must own whole cache lines at BOTH ends: a partial trailing
-	 * line shared with the next pool allocation would be discarded by the
-	 * post-DMA invalidate (see the 68040.library CachePreDMA/PostDMA contract).
-	 * When the caller requests cache-line (or coarser) alignment, round the size
-	 * up to match so the tail line is private too. */
-	if (align >= DMA_ALIGN_MIN)
-		size = (size + (align - 1)) & ~(align - 1);
-
-	ULONG total = size + (align - 1) + sizeof(APTR) + sizeof(ULONG);
-	APTR raw = AllocPooled(poolHeader, total);
-	if (!raw)
-		return NULL;
-
-	APTR aligned = (APTR)(((ULONG)raw + sizeof(ULONG) + sizeof(APTR) + align - 1) & ~(align - 1));
-	((APTR *)aligned)[-1] = raw;
-	*(ULONG *)raw = total;
-
-	return aligned;
-}
-
-static inline void dma_free(APTR poolHeader, void *ptr)
-{
-	if (ptr)
-	{
-		APTR raw = ((APTR *)ptr)[-1];
-		ULONG size = *(ULONG *)raw;
-		FreePooled(poolHeader, raw, size);
-	}
-}
-
 static inline void mem_zero_asm_clr1(APTR dst, ULONG len)
 {
 	ULONG *d32 = mem_zero_align_long(dst, &len);
@@ -202,14 +167,6 @@ static inline void mem_zero(APTR dst, ULONG len)
 static inline APTR pool_zalloc(APTR poolHeader, ULONG size)
 {
 	APTR ptr = pool_alloc(poolHeader, size);
-	if (ptr)
-		mem_zero(ptr, size);
-	return ptr;
-}
-
-static inline void *dma_zalloc(APTR poolHeader, ULONG align, ULONG size)
-{
-	void *ptr = dma_alloc(poolHeader, align, size);
 	if (ptr)
 		mem_zero(ptr, size);
 	return ptr;

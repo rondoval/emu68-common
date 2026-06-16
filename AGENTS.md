@@ -2,7 +2,7 @@
 
 ## Role
 
-- `emu68-common` is the shared support library for the stack: debug output, GPIO helpers, minlist helpers, devicetree wrappers, and the local helper surface.
+- `emu68-common` is the shared support library for the stack: the DMA-memory facility (reachability predicate + region pools) and slab allocator, byteorder / MMIO accessors, timing helpers, the reset guard, debug output, GPIO / minlist / string helpers, and devicetree wrappers.
 - Changes here can affect multiple downstream repos, so prefer validating through `emu68-driver-stack` if public headers or shared helper semantics change.
 
 ## Build

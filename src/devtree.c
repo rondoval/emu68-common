@@ -36,7 +36,7 @@ u32 DT_GetPropertyValueULONG(APTR key, const char *propname, u32 def_val, BOOL c
 
 		if (p != NULL || check_parent == FALSE)
 		{
-			if (p != NULL || DT_GetPropLen(p) >= 4)
+			if (p != NULL && DT_GetPropLen(p) >= 4)
 			{
 				ret = *(u32 *)DT_GetPropValue(p);
 			}

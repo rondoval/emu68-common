@@ -70,6 +70,29 @@ static inline u64 round_up_pow2_u64(u64 value)
 	return 1ULL << (log2_floor_u64(value - 1) + 1);
 }
 
+static inline u32 log2_floor_u32(u32 value)
+{
+	u32 log2 = 0;
+
+	while (value > 1)
+	{
+		value >>= 1;
+		log2++;
+	}
+
+	return log2;
+}
+
+/* 32-bit only: avoids the 64-bit shift (__ashldi3) that round_up_pow2_u64 needs,
+ * which is unavailable in the freestanding m68k toolchain. */
+static inline u32 round_up_pow2_u32(u32 value)
+{
+	if (value <= 1)
+		return 1;
+
+	return 1UL << (log2_floor_u32(value - 1) + 1);
+}
+
 static inline u32 u64_lo32(u64 value)
 {
 	return (u32)value;

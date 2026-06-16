@@ -3,7 +3,7 @@
 #define _SLAB_H
 
 #include <types.h>
-#include <memory.h>
+#include <dma_mem.h> /* struct dma_pool, dma_alloc/dma_free; pulls in memory.h */
 
 struct slab_node {
 	struct slab_node *next;
@@ -12,14 +12,17 @@ struct slab_node {
 
 struct slab_cache {
 	void             *free_list;
-	APTR              pool;
+	APTR              meta_pool; /* Exec pool: slab nodes (+ data when dma_pool == NULL) */
+	struct dma_pool  *dma_pool;  /* region pool: DMA data; NULL => CPU-only slab */
 	struct slab_node *slabs;
 	ULONG             obj_size;
 	ULONG             obj_align;
 	ULONG             slab_capacity;
 };
 
-void  slab_cache_init(struct slab_cache *cache, APTR pool,
+/* @dma_pool == NULL makes a CPU-only slab (data from @meta_pool); a non-NULL
+ * @dma_pool makes the data DMA-reachable (Emu68 RAM). */
+void  slab_cache_init(struct slab_cache *cache, APTR meta_pool, struct dma_pool *dma_pool,
                       ULONG obj_size, ULONG obj_align, ULONG slab_capacity);
 void  slab_cache_destroy(struct slab_cache *cache);
 void *slab_grow(struct slab_cache *cache);

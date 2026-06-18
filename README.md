@@ -38,7 +38,7 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
 | `strutil.h` | Case- and length-bounded string compares: `_Stricmp`, `_Strnicmp`, `_Strncmp`. |
 | `format.h` | Bounded formatted printing: `_SNPrintf` / `_VSNPrintf`. |
-| `debug.h` | Debug logging (`KprintfH`, `KASSERT`, `PrintPistorm`); compiled out in non-debug builds. |
+| `debug.h` | Debug logging (`Kprintf`, `KprintfH`, `KASSERT`, `PrintPistorm`). Output sink set by the `EMU68_DEBUG_BACKEND` backend (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → `debug.lib` serial); compiled out for `off`. See *Debug output backend*. |
 | `errors.h` | `errno`-style codes (`EINVAL`, `EIO`, `ETIMEDOUT`, `ENOMEM`, …) used by the ported hardware code. |
 | `minlist.h` | `_NewMinList()` — initialise a `struct MinList` without the Kickstart V45 `NewMinList()` dependency. |
 
@@ -62,3 +62,23 @@ cmake --install build
 ```
 
 If you keep dependencies in separate install trees, point `CMAKE_PREFIX_PATH` at the `devicetree.resource` install prefix instead.
+
+### Debug output backend
+
+This package owns the stack-wide debug backend, selected with the
+`EMU68_DEBUG_BACKEND` cache variable (default `pistorm`) and exported to all
+consumers via the installed `cmake/Emu68CommonDebugBackend.cmake` module:
+
+```sh
+cmake -S . -B build ... -DEMU68_DEBUG_BACKEND=serial   # pistorm | serial | off
+```
+
+| Value     | Output                                                       | ROM-able |
+|-----------|--------------------------------------------------------------|----------|
+| `pistorm` | `RawDoFmt` → magic `0xdeadbeef` (Emu68/PiStorm trap)          | yes      |
+| `serial`  | `debug.lib` `KPutChar` → AmigaOS serial console @ 9600 baud   | no       |
+| `off`     | debug output compiled out                                    | yes      |
+
+The module exports `emu68_debug_backend_definitions()` and
+`emu68_debug_backend_finalize(<target> [ROMABLE])`, which downstream components
+call instead of hardcoding `-DDEBUG` / `emu68_rom_check`.

@@ -5,3 +5,4 @@ find_dependency(devicetree CONFIG)
 
 include("${CMAKE_CURRENT_LIST_DIR}/Emu68CommonTargets.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/Emu68CommonRomCheck.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/Emu68CommonDebugBackend.cmake")

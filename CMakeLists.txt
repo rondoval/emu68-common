@@ -5,6 +5,10 @@ project(common VERSION 1.5.0 LANGUAGES C ASM)
 # Dependencies
 find_package(devicetree CONFIG REQUIRED)
 
+# Debug-output backend selection (shared by the whole stack).
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebugBackend.cmake)
+emu68_debug_backend_definitions()
+
 # Set default install prefix to ./install subdirectory
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Install path" FORCE)
@@ -32,7 +36,6 @@ target_compile_options(common
 		-Wstrict-prototypes
 		-Wno-unused-function
 		-Wno-shift-count-overflow
-		-DDEBUG
 )
 
 target_include_directories(common
@@ -80,5 +83,7 @@ install(FILES
 	${CMAKE_CURRENT_BINARY_DIR}/Emu68CommonConfigVersion.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheck.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheckScript.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebugBackend.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/emu68_debug_serial_glue.c
 	DESTINATION lib/cmake/Emu68Common
 )

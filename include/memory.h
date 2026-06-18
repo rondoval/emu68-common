@@ -4,6 +4,13 @@
 
 #include <types.h>
 
+/* AllocPooled/FreePooled below need exec inlines. */
+#ifndef EXEC_BASE_NAME
+#define __NOLIBBASE__
+#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
+#endif
+#include <proto/exec.h>
+
 #define MEM_ZERO_CLR1_MAX 63UL
 #define MEM_ZERO_CLR4_MAX 511UL
 

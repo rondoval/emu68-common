@@ -19,6 +19,12 @@ if(NOT EMU68_DEBUG_BACKEND MATCHES "^(pistorm|serial|off)$")
         "EMU68_DEBUG_BACKEND must be pistorm, serial or off (got '${EMU68_DEBUG_BACKEND}')")
 endif()
 
+# Verbose ("high") debug logging (debug.h KprintfH / DEBUG_HIGH).  Layers on top of
+# DEBUG, so it only emits when the backend is pistorm or serial; it is a no-op for
+# the "off" backend.  Per-component boolean: the top-level build turns its
+# EMU68_DEBUG_HIGH component list into ON for the selected components.
+option(EMU68_DEBUG_HIGH "Enable verbose DEBUG_HIGH logging in this component" OFF)
+
 # Weak __divsi3 helper that debug.lib's single-object kdebug.o drags in via KGetNum
 # (which we never call).  Defined weak so libc's strong copy wins for hosted
 # programs, while it is the sole definition for freestanding (-nostdlib) targets.
@@ -35,6 +41,10 @@ macro(emu68_debug_backend_definitions)
         add_compile_definitions(DEBUG DEBUG_SERIAL)
     endif()
     # "off": no DEBUG define -> debug.h compiles the logging macros out.
+    # Verbose logging layers on DEBUG; meaningless (and skipped) when off.
+    if(EMU68_DEBUG_HIGH AND NOT EMU68_DEBUG_BACKEND STREQUAL "off")
+        add_compile_definitions(DEBUG_HIGH)
+    endif()
 endmacro()
 
 # emu68_debug_backend_finalize(<target> [ROMABLE])

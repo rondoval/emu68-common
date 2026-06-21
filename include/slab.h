@@ -47,7 +47,7 @@ static inline void *slab_zalloc(struct slab_cache *cache)
 {
 	void *ptr = slab_alloc(cache);
 	if (ptr)
-		mem_zero(ptr, cache->obj_size);
+		memset(ptr, 0, cache->obj_size);
 	return ptr;
 }
 

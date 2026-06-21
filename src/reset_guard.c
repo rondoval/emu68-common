@@ -100,7 +100,7 @@ static APTR lvo_target(LONG lvo)
 BOOL reset_guard_install(struct reset_guard *rg, reset_guard_prepare_t prepare,
                          APTR user, CONST_STRPTR name)
 {
-	mem_zero(rg, sizeof(*rg));
+	memset(rg, 0, sizeof(*rg));
 	rg->rg_Prepare = prepare;
 	rg->rg_User = user;
 	rg->rg_Name = name;

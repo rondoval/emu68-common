@@ -39,12 +39,19 @@ file(GLOB_RECURSE common_sources CONFIGURE_DEPENDS src/*.c src/*.S)
 # Library target
 add_library(common STATIC ${common_sources})
 
+# Freestanding C runtime memory primitives (memset/memcpy/memmove/memcmp) that
+# GCC may synthesise at -O3.  Compile their definitions with the loop-idiom and
+# builtin recognition disabled so the compiler does not rewrite, e.g., memcpy()'s
+# own copy loop into a call to memcpy() (infinite recursion).
+set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c PROPERTIES
+	COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns;-fno-builtin")
+
 target_compile_options(common
 	PRIVATE
 		-ffreestanding
 		-nostdlib
 		-nostartfiles
-		-Os
+		-O3
 		-m68040
 		-fomit-frame-pointer
 		-Wall

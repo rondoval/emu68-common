@@ -179,4 +179,4 @@ static inline APTR pool_zalloc(APTR poolHeader, ULONG size)
 	return ptr;
 }
 
-#endif
+#endif /* _MEMORY_H */

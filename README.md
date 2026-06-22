@@ -1,5 +1,10 @@
 # emu68-common
 
+> **Releases:** this component ships as part of the
+> [emu68-driver-stack](https://github.com/rondoval/emu68-driver-stack) — the downloadable
+> `.lha` and bundled documentation are published there. This repository is source-only
+> and versioned via git tags.
+
 Common support library used by Emu68 AmigaOS drivers.
 
 This package provides shared helper code such as debug output, formatted printing, GPIO helpers, device-tree wrapper utilities, a DMA memory facility (`dma_mem.h`), and a reset guard (`reset_guard.h`) that lets DMA-capable drivers quiesce their hardware before the Amiga resets.

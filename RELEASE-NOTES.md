@@ -1,3 +1,114 @@
+# Release notes — emu68-common 1.6.0
+
+Changes since 1.5.0.
+
+---
+
+## Breaking changes
+
+### `mem_zero()` removed — use standard `memset()`
+
+The entire hand-rolled `mem_zero*` family is gone from `memory.h` (`mem_zero`, the
+`mem_zero_asm_clr1`/`clr4`/`movem` size buckets, `mem_zero_align_long`,
+`mem_zero_tail`, `mem_zero_asm_movem_impl`, and the `MEM_ZERO_*` thresholds).
+Callers must switch to the standard `memset(dst, 0, n)`.  The asm helper file was
+renamed `memzero_movem.S` → `memset_movem.S` and now takes a broadcast fill value.  In-tree consumers (`dma_zalloc`, `slab_zalloc`, `pool_zalloc`,
+`reset_guard_install`) were updated.
+
+### emu68-common no longer hard-codes `-DDEBUG`
+
+The common library used to compile with `-DDEBUG` unconditionally.  Debug output is
+now selected through the new stack-wide backend (see below); components opt in via
+`emu68_debug_backend_definitions()` / `emu68_debug_backend_finalize()` (or the
+stack top-level build) instead of defining `DEBUG` themselves.
+
+---
+
+## New features (new APIs / build)
+
+### Freestanding C runtime memory primitives (`memset`/`memcpy`/`memmove`/`memcmp`)
+
+`memory.h` now declares — and the new `src/memory.c` defines — the four memory
+primitives the compiler may synthesise out of ordinary loops and aggregate
+init/assignment.  These must exist as real symbols because the drivers are built
+`-ffreestanding -nostdlib` with no libc:
+
+```c
+void *memset(void *dst, int c, __SIZE_TYPE__ n);
+void *memcpy(void *dst, const void *src, __SIZE_TYPE__ n);
+void *memmove(void *dst, const void *src, __SIZE_TYPE__ n);
+int   memcmp(const void *s1, const void *s2, __SIZE_TYPE__ n);
+```
+
+`memset` is the asm-optimised byte fill (the generalised former `mem_zero`);
+`memcpy`/`memmove` route through Exec `CopyMem` (with an in-house descending copy
+for the rare overlapping `dst > src` case, since `CopyMem` is not overlap-safe);
+`memcmp` is a long-at-a-time compare with a byte tail.  The length type is the
+compiler's `__SIZE_TYPE__` (the builtin `size_t`) named directly rather than via
+`<stddef.h>`, so the header stays compatible with TUs that redefine `size_t`
+(e.g. `emu68-pcie-library`'s `u64 size_t`).  `memory.c` is built
+`-fno-builtin -fno-tree-loop-distribute-patterns` so its own copy/fill/compare
+loops are not rewritten into self-referential calls.
+
+### Stack-wide debug output backend (`EMU68_DEBUG_BACKEND`)
+
+A new installed CMake module (`Emu68CommonDebugBackend.cmake`, auto-included by
+`find_package(Emu68Common)`) turns one cache variable into the right compile
+definitions and link steps for the whole stack — a single `libcommon.a` is shared
+by every component, so the backend is a stack-wide property:
+
+```sh
+cmake -S . -B build ... -DEMU68_DEBUG_BACKEND=serial   # pistorm | serial | off
+```
+
+| Value     | Output                                                     | ROM-able |
+|-----------|------------------------------------------------------------|----------|
+| `pistorm` | `RawDoFmt` → magic `0xdeadbeef` Emu68/PiStorm trap (default)| yes      |
+| `serial`  | `debug.lib` `KPutChar` → AmigaOS serial console @ 9600 baud | no       |
+| `off`     | debug output compiled out                                  | yes      |
+
+The module exports `emu68_debug_backend_definitions()` (apply the backend's
+compile definitions before a directory's targets) and
+`emu68_debug_backend_finalize(<target> [ROMABLE])` (link `libdebug.a` plus a weak
+`__divsi3` glue for the serial backend, or run the ROM check for `ROMABLE`
+targets) so downstream components stop hardcoding `-DDEBUG` / `emu68_rom_check`.
+`debug.h` gained the matching `DEBUG_SERIAL` code path; with the backend `off` the
+logging macros expand to `((void)0)` (a statement, so `if (x) Kprintf(...);`
+keeps a body and doesn't trip `-Wempty-body`).
+
+### Verbose logging opt-in (`EMU68_DEBUG_HIGH`)
+
+A per-component CMake option (`EMU68_DEBUG_HIGH`, default `OFF`) enables the
+`DEBUG_HIGH` / `KprintfH` verbose tier.  It layers on top of `DEBUG`, so it only
+emits when the backend is `pistorm` or `serial` and is a no-op for `off`.
+
+### NDK 3.9 (and pre-3.2) compatibility
+
+The stack now builds against newer and older NDKs as well as the target NDK 3.2:
+
+- **const-correctness probe** — a `check_c_source_compiles` test detects a
+  non-const-correct (pre-3.2) NDK whose `CopyMem()` takes a non-const source and,
+  when found, suppresses just `-Wdiscarded-qualifiers` across the stack.  The
+  result (`EMU68_NDK_NONCONST`) is baked into the exported package config so every
+  `find_package(Emu68Common)` consumer inherits the same decision; on NDK 3.2 the
+  probe passes and the warning stays fully enabled.
+- **`minlist.h`** — fallback macros for the NDK 3.2 type-safe wrappers
+  (`AddHeadMinList`, `AddTailMinList`, `RemHeadMinList`, `RemoveMinNode`) so code
+  using them builds on any NDK while staying identical on 3.2.
+- **`types.h`** — pulls in `<stdint.h>` for the fixed-width types older NDKs don't
+  expose via `exec/types.h`.
+- **`dma_mem.c`** — device-tree cells are read as `u32` (DT cells are 32-bit,
+  matching `DT_GetNumber` on any NDK).
+
+### Versioning workflow
+
+A `.github/workflows/versioning.yml` that gates every PR on a version bump + a
+`RELEASE-NOTES.md` update + a clean build inside the stack, and auto-tags
+`v<version>` on merge to `main`, via the stack's reusable
+`component-versioning.yml` so all components stay in lock-step.
+
+---
+
 # Release notes — emu68-common 1.5.0
 
 Changes since v1.3.

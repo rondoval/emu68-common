@@ -2,6 +2,7 @@
 #ifndef _TYPES_H
 #define _TYPES_H
 
+#include <stdint.h>     /* fixed-width types; older NDKs don't pull this in via exec/types.h */
 #include <exec/types.h>
 
 typedef uint64_t u64;

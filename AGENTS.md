@@ -12,6 +12,12 @@
   - `cmake --build build`
   - `cmake --install build`
 - `devicetree.resource` must be installed first.
+- This component owns the stack-wide debug backend: `EMU68_DEBUG_BACKEND` (default
+  `pistorm` | `serial` | `off`), wired through `include/debug.h` and the exported
+  `cmake/Emu68CommonDebugBackend.cmake` module (`emu68_debug_backend_definitions()`
+  + `emu68_debug_backend_finalize(<tgt> [ROMABLE])`). `serial` links `debug.lib`
+  and is not ROM-able. New debug-emitting components call those two functions
+  instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
 
 ## Code Handling
 

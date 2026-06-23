@@ -75,7 +75,7 @@ void dma_mem_init(struct dma_mem_ctx *ctx)
 		return;
 	}
 
-	const ULONG *reg = DT_GetPropValue(mem_prop);
+	const u32 *reg = DT_GetPropValue(mem_prop); /* DT cells are 32-bit; matches DT_GetNumber's param on any NDK */
 	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(ULONG);
 
 	/* DT spec defaults (and the convention used throughout this stack): 2 address

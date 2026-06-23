@@ -3,7 +3,7 @@
 #define _DMA_MEM_H
 
 #include <types.h>
-#include <memory.h> /* mem_zero (dma_zalloc), pool_* live here */
+#include <memory.h> /* memset (dma_zalloc), pool_* live here */
 
 /*
  * DMA-safe memory for PiStorm/Emu68.
@@ -130,7 +130,7 @@ static inline void *dma_zalloc(struct dma_pool *pool, ULONG align, ULONG size)
 {
 	void *ptr = dma_alloc(pool, align, size);
 	if (ptr)
-		mem_zero(ptr, size);
+		memset(ptr, 0, size);
 	return ptr;
 }
 

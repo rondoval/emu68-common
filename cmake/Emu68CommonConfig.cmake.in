@@ -5,3 +5,11 @@ find_dependency(devicetree CONFIG)
 
 include("${CMAKE_CURRENT_LIST_DIR}/Emu68CommonTargets.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/Emu68CommonRomCheck.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/Emu68CommonDebugBackend.cmake")
+
+# Suppress -Wdiscarded-qualifiers when emu68-common detected a non-const-correct
+# (pre-3.2) NDK (baked at emu68-common build time; the whole stack uses one NDK).
+# Harmless no-op on NDK 3.2 (value is 0). See emu68-common's CMakeLists probe.
+if(@EMU68_NDK_NONCONST@)
+	add_compile_options(-Wno-discarded-qualifiers)
+endif()

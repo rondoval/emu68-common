@@ -4,46 +4,27 @@
 
 #include <types.h>
 
-#define MEM_ZERO_CLR1_MAX 63UL
-#define MEM_ZERO_CLR4_MAX 511UL
+/* AllocPooled/FreePooled below need exec inlines. */
+#ifndef EXEC_BASE_NAME
+#define __NOLIBBASE__
+#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
+#endif
+#include <proto/exec.h>
 
-void mem_zero_asm_movem_impl(ULONG *dst, ULONG blocks);
-
-static inline ULONG *mem_zero_align_long(APTR dst, ULONG *len)
-{
-	ULONG addr = (ULONG)dst;
-
-	if (*len && (addr & 1))
-	{
-		*(UBYTE *)addr = 0;
-		addr += sizeof(UBYTE);
-		*len -= sizeof(UBYTE);
-	}
-
-	if (*len >= sizeof(UWORD) && (addr & 2))
-	{
-		*(UWORD *)addr = 0;
-		addr += sizeof(UWORD);
-		*len -= sizeof(UWORD);
-	}
-
-	return (ULONG *)addr;
-}
-
-static inline void mem_zero_tail(ULONG *dst, ULONG len)
-{
-	ULONG addr = (ULONG)dst;
-
-	if (len >= sizeof(UWORD))
-	{
-		*(UWORD *)addr = 0;
-		addr += sizeof(UWORD);
-		len -= sizeof(UWORD);
-	}
-
-	if (len)
-		*(UBYTE *)addr = 0;
-}
+/* Freestanding C runtime memory primitives (implemented in memory.c).  These
+ * are the symbols GCC may synthesise at -O3 in this -nostdlib tree; memset is an
+ * asm-optimised byte fill, memcpy/memmove route through Exec CopyMem.  Signatures
+ * match the compiler builtins so call sites in builtin-enabled TUs may still be
+ * optimised (e.g. a constant-size memset(&x, 0, sizeof x) inlined directly).
+ *
+ * The length type is the compiler's __SIZE_TYPE__ (== the builtin memset/memcpy
+ * size_t) used directly rather than via <stddef.h>: this header is pulled into
+ * TUs that redefine size_t themselves (e.g. emu68-pcie-library's u64 size_t), so
+ * naming the underlying type keeps the builtin ABI and avoids a typedef clash. */
+void *memset(void *dst, int c, __SIZE_TYPE__ n);
+void *memcpy(void *dst, const void *src, __SIZE_TYPE__ n);
+void *memmove(void *dst, const void *src, __SIZE_TYPE__ n);
+int memcmp(const void *s1, const void *s2, __SIZE_TYPE__ n);
 
 static inline APTR pool_alloc(APTR poolHeader, ULONG size)
 {
@@ -66,110 +47,12 @@ static inline void pool_free(APTR poolHeader, APTR ptr)
 	FreePooled(poolHeader, raw, size);
 }
 
-static inline void mem_zero_asm_clr1(APTR dst, ULONG len)
-{
-	ULONG *d32 = mem_zero_align_long(dst, &len);
-	ULONG long_count = len / sizeof(ULONG);
-	ULONG tail = len & (sizeof(ULONG) - 1);
-
-	if (long_count)
-	{
-		asm volatile(
-			"move.l %[count], %%d0\n\t"
-			"1:\n\t"
-			"clr.l (%[dst])+\n\t"
-			"subq.l #1, %%d0\n\t"
-			"bne.s 1b\n\t"
-			: [dst] "+a"(d32)
-			: [count] "r"(long_count)
-			: "d0", "cc", "memory");
-	}
-
-	mem_zero_tail(d32, tail);
-}
-
-static inline void mem_zero_asm_clr4(APTR dst, ULONG len)
-{
-	ULONG *d32 = mem_zero_align_long(dst, &len);
-	ULONG long_count = len / sizeof(ULONG);
-	ULONG quads = long_count / 4;
-	ULONG rem = long_count & 3;
-	ULONG tail = len & (sizeof(ULONG) - 1);
-
-	if (long_count)
-	{
-		asm volatile(
-			"move.l %[quads], %%d0\n\t"
-			"beq.s 2f\n\t"
-			"1:\n\t"
-			"clr.l (%[dst])+\n\t"
-			"clr.l (%[dst])+\n\t"
-			"clr.l (%[dst])+\n\t"
-			"clr.l (%[dst])+\n\t"
-			"subq.l #1, %%d0\n\t"
-			"bne.s 1b\n\t"
-			"2:\n\t"
-			"move.l %[rem], %%d0\n\t"
-			"beq.s 4f\n\t"
-			"3:\n\t"
-			"clr.l (%[dst])+\n\t"
-			"subq.l #1, %%d0\n\t"
-			"bne.s 3b\n\t"
-			"4:\n\t"
-			: [dst] "+a"(d32)
-			: [quads] "r"(quads), [rem] "r"(rem)
-			: "d0", "cc", "memory");
-	}
-
-	mem_zero_tail(d32, tail);
-}
-
-static inline void mem_zero_asm_movem(APTR dst, ULONG len)
-{
-	ULONG *d32 = mem_zero_align_long(dst, &len);
-	ULONG long_count = len / sizeof(ULONG);
-	ULONG blocks = long_count / 16;
-	ULONG rem = long_count % 16;
-	ULONG tail = len & (sizeof(ULONG) - 1);
-
-	if (blocks)
-	{
-		mem_zero_asm_movem_impl(d32 + (blocks * 16), blocks);
-		d32 += blocks * 16;
-	}
-
-	while (rem)
-	{
-		*d32++ = 0;
-		rem--;
-	}
-
-	mem_zero_tail(d32, tail);
-}
-
-static inline void mem_zero(APTR dst, ULONG len)
-{
-	if (len <= MEM_ZERO_CLR1_MAX)
-	{
-		mem_zero_asm_clr1(dst, len);
-		return;
-	}
-
-	if (len <= MEM_ZERO_CLR4_MAX)
-	{
-		mem_zero_asm_clr4(dst, len);
-		return;
-	}
-
-	mem_zero_asm_movem(dst, len);
-}
-
 static inline APTR pool_zalloc(APTR poolHeader, ULONG size)
 {
 	APTR ptr = pool_alloc(poolHeader, size);
 	if (ptr)
-		mem_zero(ptr, size);
+		memset(ptr, 0, size);
 	return ptr;
 }
 
-#endif
+#endif /* _MEMORY_H */

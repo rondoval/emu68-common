@@ -14,25 +14,6 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/install" CACHE PATH "Install path" FORCE)
 endif()
 
-# Detect a non-const-correct (pre-AmigaOS-3.2) NDK: its CopyMem() and friends take
-# a non-const source, so otherwise const-correct code trips -Wdiscarded-qualifiers.
-# When the probe fails we suppress just that one warning class across the stack (the
-# code is const-correct for the target NDK 3.2 — there the probe passes and the
-# warning stays fully enabled).  The result is baked into the exported package config
-# so every find_package(Emu68Common) consumer inherits the same decision.
-include(CheckCSourceCompiles)
-set(CMAKE_REQUIRED_FLAGS "-Werror=discarded-qualifiers")
-check_c_source_compiles([=[
-#include <proto/exec.h>
-void f(void) { const char s[1] = {0}; CopyMem(s, (APTR)0, 1); }
-]=] EMU68_NDK_COPYMEM_CONST_CORRECT)
-unset(CMAKE_REQUIRED_FLAGS)
-if(EMU68_NDK_COPYMEM_CONST_CORRECT)
-	set(EMU68_NDK_NONCONST 0)
-else()
-	set(EMU68_NDK_NONCONST 1)
-endif()
-
 # Source files
 file(GLOB_RECURSE common_sources CONFIGURE_DEPENDS src/*.c src/*.S)
 
@@ -63,11 +44,6 @@ target_compile_options(common
 		-Wno-unused-function
 		-Wno-shift-count-overflow
 )
-
-# Suppress the const-discard artifact on a non-const-correct NDK (see probe above).
-if(EMU68_NDK_NONCONST)
-	target_compile_options(common PRIVATE -Wno-discarded-qualifiers)
-endif()
 
 target_include_directories(common
 	PUBLIC

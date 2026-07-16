@@ -7,7 +7,7 @@
 
 Common support library used by Emu68 AmigaOS drivers.
 
-This package provides shared helper code such as debug output, formatted printing, GPIO helpers, device-tree wrapper utilities, a DMA memory facility (`dma_mem.h`), and a reset guard (`reset_guard.h`) that lets DMA-capable drivers quiesce their hardware before the Amiga resets.
+This package provides shared helper code such as debug output, formatted printing, GPIO helpers, device-tree wrapper utilities, a DMA memory facility (`dma_mem.h`), DMA cache maintenance (`cache_ops.h`), and a reset guard (`reset_guard.h`) that lets DMA-capable drivers quiesce their hardware before the Amiga resets.
 
 ## DMA memory (`dma_mem.h`)
 
@@ -26,6 +26,19 @@ A `struct dma_pool *` handle is valid only for the `dma_alloc`/`dma_zalloc`/`dma
 
 `reset_guard_install(rg, prepare, user, name)` runs a driver "prepare for reset" callback before the Amiga resets, covering the Ctrl-Amiga-Amiga keyboard reset-warning protocol and `ColdReboot()` (C:Reboot, Installer, ...). The `prepare()` callback must be interrupt-safe and is invoked at most once per session. The module is ROM-able and task-less; all mutable state lives in the caller-provided `struct reset_guard`. `reset_guard_remove(rg)` is for expunge only and fails if the `ColdReboot` vector was re-patched by someone else.
 
+## DMA cache maintenance (`cache_ops.h`)
+
+Wraps Exec's `CachePreDMA`/`CachePostDMA` — patched by `68040.library` (embedded in the Emu68 image) to emit a private LINE-F range opcode that Emu68 JIT-compiles to a per-64-byte-line cache-maintenance loop — with an inline fast path that emits that opcode directly from the caller, skipping the exec LVO round-trip (the dominant cost for small ranges):
+
+```c
+void cache_pre_dma(APTR addr, ULONG len, ULONG flags);   // DMA_ReadFromRAM / DMAF_NoSync
+void cache_post_dma(APTR addr, ULONG len, ULONG flags);
+```
+
+A buffer the device writes needs both ops — clean+invalidate before it is armed to hardware, invalidate after DMA — and never just the post op: a dirty line at DMA time corrupts the payload. The private `DMAF_NoSync` flag suppresses the trailing hardware barrier so a batch of ops pays one instead of one per op, closed with a single `emu68_barrier()` (`barrier.h`).
+
+The inline fast path assumes a patched Emu68; set `EMU68_FORCE_LVO_CACHE_OPS` (see *Cache-ops LVO fallback* below) to fall back to the plain exec LVO calls when building against an Emu68 that doesn't have the private opcode.
+
 ## Utility headers
 
 The remaining headers are small, mostly inline helpers shared by the drivers. Each is independent — include only what you need.
@@ -35,13 +48,14 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `types.h` | Fixed-width integer types (`u8`–`u64`, `s8`–`s64`), little-endian MMIO types (`__le8`–`__le64`), `dma_addr_t`, and `likely()`/`unlikely()` branch hints. |
 | `bits.h` | Bit and alignment helpers: `ALIGN_UP`, `DIV_CEIL`, `BIT()`, mask extract/insert/update, `log2_floor_u32/u64`, `round_up_pow2_u32/u64`, and `u64` hi/lo splits. |
 | `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
+| `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
 | `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` plus read-modify-write helpers (`mmio_update/clear/set`). |
 | `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: base-address resolution (`DT_GetBaseAddress[Virtual]`), property/number reads, `DT_TranslateAddress`, and `DT_GetInterrupt`. |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
 | `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and fast `movem`-based block zeroing. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
-| `strutil.h` | Case- and length-bounded string compares: `_Stricmp`, `_Strnicmp`, `_Strncmp`. |
+| `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus a standard `strncmp()` for third-party code. |
 | `format.h` | Bounded formatted printing: `_SNPrintf` / `_VSNPrintf`. |
 | `debug.h` | Debug logging (`Kprintf`, `KprintfH`, `KASSERT`, `PrintPistorm`). Output sink set by the `EMU68_DEBUG_BACKEND` backend (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → `debug.lib` serial); compiled out for `off`. See *Debug output backend*. |
 | `errors.h` | `errno`-style codes (`EINVAL`, `EIO`, `ETIMEDOUT`, `ENOMEM`, …) used by the ported hardware code. |
@@ -87,3 +101,20 @@ cmake -S . -B build ... -DEMU68_DEBUG_BACKEND=serial   # pistorm | serial | off
 The module exports `emu68_debug_backend_definitions()` and
 `emu68_debug_backend_finalize(<target> [ROMABLE])`, which downstream components
 call instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
+
+### Cache-ops LVO fallback
+
+`cache_ops.h`'s inline fast path (see *DMA cache maintenance* above) needs a
+private range opcode that only a patched Emu68 build understands. Set
+`EMU68_FORCE_LVO_CACHE_OPS` to route `cache_pre_dma()`/`cache_post_dma()`
+through the plain exec LVO instead — exported the same way as the debug
+backend, via the installed `cmake/Emu68CommonCacheOps.cmake` module
+(`emu68_cache_ops_definitions()`):
+
+```sh
+cmake -S . -B build ... -DEMU68_FORCE_LVO_CACHE_OPS=ON   # default: OFF
+```
+
+Default `OFF` gets the inline fast path (for local builds against a patched
+Emu68); the driver stack's CI sets it `ON` because it builds against a released
+Emu68 that lacks the private opcode.

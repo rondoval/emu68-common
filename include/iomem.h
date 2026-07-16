@@ -4,23 +4,24 @@
 
 #include <types.h>
 #include <byteorder.h>
+#include <barrier.h>
 
 static inline u32 mmio_read32_impl(const volatile __le32 *addr)
 {
 	u32 val = le32(*addr);
-	asm volatile("nop");
+	emu68_barrier();
 	return val;
 }
 
 static inline void mmio_write32_impl(u32 value, volatile __le32 *addr)
 {
 	*addr = le32(value);
-	asm volatile("nop");
+	emu68_barrier();
 }
 
 static inline u16 mmio_read16_impl(const volatile __le16 *addr)
 {
-	asm volatile("nop");
+	emu68_barrier();
 	u16 val = le16(*addr);
 	return val;
 }
@@ -28,19 +29,19 @@ static inline u16 mmio_read16_impl(const volatile __le16 *addr)
 static inline void mmio_write16_impl(u16 value, volatile __le16 *addr)
 {
 	*addr = le16(value);
-	asm volatile("nop");
+	emu68_barrier();
 }
 
 static inline u8 mmio_read8_impl(const volatile __le8 *addr)
 {
-	asm volatile("nop");
+	emu68_barrier();
 	return *addr;
 }
 
 static inline void mmio_write8_impl(u8 value, volatile __le8 *addr)
 {
 	*addr = value;
-	asm volatile("nop");
+	emu68_barrier();
 }
 
 #define mmio_read32(addr) mmio_read32_impl((const volatile __le32 *)(addr))

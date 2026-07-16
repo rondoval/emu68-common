@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.6.0 LANGUAGES C ASM)
+project(common VERSION 1.7.0 LANGUAGES C ASM)
 
 # Dependencies
 find_package(devicetree CONFIG REQUIRED)
@@ -91,6 +91,7 @@ install(FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheck.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheckScript.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebugBackend.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/emu68_debug_serial_glue.c
 	DESTINATION lib/cmake/Emu68Common
 )

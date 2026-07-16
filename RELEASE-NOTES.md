@@ -1,3 +1,82 @@
+# Release notes — emu68-common 1.7.0
+
+Changes since 1.6.0.
+
+---
+
+## Breaking changes
+
+### `_Strncmp()` removed — use standard `strncmp()`
+
+`strutil.h` no longer declares the bespoke `_Strncmp(CONST_STRPTR, CONST_STRPTR,
+LONG)`; `textutil.c` now defines a standard `strncmp(const char *, const char *,
+__SIZE_TYPE__)` instead, matching `<string.h>`'s signature so third-party code
+(the `nvme.device` `mounter` submodule) calling `strncmp` directly links against
+it without a shim. `_Stricmp`/`_Strnicmp` are unchanged. Callers must switch from
+`_Strncmp(s1, s2, len)` to `strncmp(s1, s2, len)`.
+
+---
+
+## New features (new APIs / build)
+
+### DMA cache maintenance + inline fast path (`cache_ops.h`)
+
+A new header wraps Exec's `CachePreDMA`/`CachePostDMA` — patched by
+`68040.library` (embedded in the Emu68 image, the pair is atomic) to emit a
+private LINE-F range opcode that Emu68 JIT-compiles to a per-64-byte-line `dc`
+loop closed by one `dsb sy` — with an inline fast path that emits that opcode
+directly from the caller, skipping the exec LVO round-trip (~3 JIT dispatcher
+transitions + block-exit state flushes per call, the dominant cost for small
+ranges):
+
+```c
+void cache_pre_dma(APTR addr, ULONG len, ULONG flags);   // DMA_ReadFromRAM / DMAF_NoSync
+void cache_post_dma(APTR addr, ULONG len, ULONG flags);
+```
+
+A buffer the device writes needs both ops — clean+invalidate before it is armed
+to hardware, invalidate after DMA — and never just the post op: a dirty line at
+DMA time corrupts the payload by eviction or by the post-invalidate itself
+(Cortex-A executes `dc ivac` on a dirty line as clean+invalidate). The private
+`DMAF_NoSync` flag (bit 4) suppresses the opcode's trailing `dsb sy` so a batch
+of ops pays one barrier instead of one per op — either every op but the last
+carries the flag, or every op carries it and the batch is closed with one
+`emu68_barrier()` (see below).
+
+Define `EMU68_FORCE_LVO_CACHE_OPS` (or the new CMake option below) to route
+through the plain exec LVO instead, for an Emu68 build that doesn't yet have the
+private range opcode.
+
+### Shared Emu68 barrier primitive (`barrier.h`, `emu68_barrier()`)
+
+Extracted from `cache_ops.h` (previously the DMA-only `emu68_dma_sync()`) into
+its own header, since the same NOP-becomes-`dsb sy` Emu68 JIT trick is also what
+`iomem.h`'s MMIO accessors need for read/write ordering. `iomem.h`'s six MMIO
+helpers now call `emu68_barrier()` instead of a bare `asm volatile("nop")` — see
+*Bug fixes* below.
+
+### `EMU68_FORCE_LVO_CACHE_OPS` CMake option
+
+A new installed CMake module (`Emu68CommonCacheOps.cmake`, auto-included by
+`find_package(Emu68Common)`) exports `emu68_cache_ops_definitions()`, mirroring
+`EMU68_DEBUG_BACKEND`'s propagation pattern. Default `OFF` (the inline fast
+path); the driver stack's CI sets it `ON` because it builds against a released
+Emu68 that lacks the private range opcode, while local builds against a patched
+Emu68 keep the optimization.
+
+---
+
+## Bug fixes / Improvements
+
+### `iomem.h` MMIO barriers gained a missing memory clobber
+
+The six `mmio_read/write{8,16,32}` helpers' ordering NOPs now go through
+`emu68_barrier()` (`asm volatile("nop" ::: "memory")`) instead of a bare
+`asm volatile("nop")`, so the compiler can no longer reorder unrelated memory
+accesses across the hardware barrier.
+
+---
+
 # Release notes — emu68-common 1.6.0
 
 Changes since 1.5.0.

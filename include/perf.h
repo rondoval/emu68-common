@@ -92,4 +92,83 @@ void perf_report(struct perf *pf);
 #define perf_report(pf)         do { (void)(pf); } while (0)
 #endif
 
+/*
+ * lock_prof — a SignalSemaphore wait/hold profiler, built on the perf slots
+ * above. A self-contained instance: it owns a two-slot perf report ("lockwait",
+ * "lockhold") so a component reports its core lock through the same
+ * perf_report()/scripts/perf-report.py path as its stage timings. Only the
+ * outermost hold is timed (ss_NestCount), so recursive re-entry does not
+ * double-count; the wait/hold counter updates run while the lock is held, so
+ * they need no atomicity of their own.
+ *
+ * ROM-able: embed the struct in the unit/device context (all mutable state is
+ * caller-owned); the name table and prefix are rodata.
+ *
+ *   struct MyUnit { ...; struct lock_prof mu_LockProf; };
+ *   lock_prof_init(&unit->mu_LockProf, "mydev");   // once, after InitSemaphore
+ *   lock_prof_obtain(&unit->mu_LockProf, &sem);     // instead of ObtainSemaphore
+ *   ... work ...
+ *   lock_prof_release(&unit->mu_LockProf, &sem);    // instead of ReleaseSemaphore
+ *   lock_prof_report(&unit->mu_LockProf);           // from the periodic report
+ */
+enum { LOCKPROF_WAIT, LOCKPROF_HOLD, LOCKPROF_NSLOTS };
+extern const char *const lock_prof_names[LOCKPROF_NSLOTS]; /* rodata, perf.c */
+
+struct lock_prof {
+	struct perf         lp_perf;                   /* self-contained instance */
+	struct perf_counter lp_slots[LOCKPROF_NSLOTS]; /* caller-owned, zeroed */
+	u32                 lp_hold_t0;                /* outermost hold start */
+};
+
+#ifdef PROFILE
+
+static inline void lock_prof_init(struct lock_prof *lp, const char *prefix)
+{
+	lp->lp_perf.pf_prefix = prefix;
+	lp->lp_perf.pf_names  = lock_prof_names;
+	lp->lp_perf.pf_slots  = lp->lp_slots;
+	lp->lp_perf.pf_nslots = LOCKPROF_NSLOTS;
+}
+
+/* Obtain @s and time the outermost acquire-wait; on the outermost hold start
+ * the hold clock. Macro so the exec call expands at the caller (see above). */
+#define lock_prof_obtain(lp, s)                                             \
+	do {                                                                    \
+		u32 _lp_wait_t0 = get_time();                                       \
+		ObtainSemaphore(s);                                                 \
+		if ((s)->ss_NestCount == 1) {                                       \
+			perf_add(&(lp)->lp_perf, LOCKPROF_WAIT, _lp_wait_t0);           \
+			(lp)->lp_hold_t0 = get_time();                                  \
+		}                                                                   \
+	} while (0)
+
+/* Record the outermost hold, then release @s. */
+#define lock_prof_release(lp, s)                                            \
+	do {                                                                    \
+		if ((s)->ss_NestCount == 1)                                         \
+			perf_add(&(lp)->lp_perf, LOCKPROF_HOLD, (lp)->lp_hold_t0);      \
+		ReleaseSemaphore(s);                                                \
+	} while (0)
+
+static inline void lock_prof_report(struct lock_prof *lp)
+{
+	perf_report(&lp->lp_perf);
+}
+
+#else /* !PROFILE — the macros still perform the real lock */
+
+static inline void lock_prof_init(struct lock_prof *lp, const char *prefix)
+{
+	(void)lp;
+	(void)prefix;
+}
+#define lock_prof_obtain(lp, s)  do { (void)(lp); ObtainSemaphore(s); } while (0)
+#define lock_prof_release(lp, s) do { (void)(lp); ReleaseSemaphore(s); } while (0)
+static inline void lock_prof_report(struct lock_prof *lp)
+{
+	(void)lp;
+}
+
+#endif /* PROFILE */
+
 #endif /* _PERF_H */

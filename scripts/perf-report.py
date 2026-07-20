@@ -9,10 +9,14 @@ section each), groups the ~2 s report blocks into windows, keeps the
 steady-state windows (key slot count >= 50 % of its peak), and prints per-slot
 rates, per-event averages and share of wall time.
 
-When the capture also carries the stack's standard telemetry, it is folded in:
-the ``[netstack] lock:`` line (core-lock held/waited shares) and genet's
-``rxprof``/``mib pkt``/``txh pkt`` lines (driver frames/s, used to normalize
-slot costs per RX/TX frame).
+All telemetry flows through this one grammar. The core lock reports as the
+``[netstack] lockwait``/``lockhold`` slots (held % = lockhold's %wall), and
+genet's datapath as the ``[genet] rx_drain``/``rx_flush``/``tx_submit``/
+``tx_reclaim`` slots. Per-frame columns (us/frame) are normalized by the
+stack's own per-frame slot counts — ``nsprof rx_input`` for RX and
+``nsprof tx_linkout`` for TX — so any capture that includes the nsprof
+instance gets us/frame for every prefix's slots. (genet's ``[genet] txh:``
+ring-health line is a separate TX-wedge diagnostic and is not reduced here.)
 
 Usage:
   perf-report.py <capture.log> [--key SLOT] [--label TEXT]
@@ -27,25 +31,19 @@ import sys
 
 TS = re.compile(r"^(\d+):(\d+):(\d+):(\d+) -> (.*)$")
 PERF = re.compile(r"\[(\w+)\] (\w+): n=(\d+) sum=(\d+)us avg=[\d.]+us max=(\d+)us")
-LOCK = re.compile(r"\[netstack\] lock: (\d+) holds, wait (\d+) us, hold (\d+) us, maxhold (\d+) us")
-RXPROF = re.compile(r"\[genet\] rxprof: fr\+(\d+) drain=(\d+)us flush=(\d+)us")
-TXH = re.compile(r"\[genet\] txh: pkt\+(\d+)")
 
 WINDOW_FALLBACK_MS = 2020  # perf_report cadence when the log has no timestamps
 WINDOW_GAP_MS = 300        # a larger gap between perf lines starts a new window
 
 
 def parse(path):
-    """Return (windows-per-prefix, locks, rx200, tx200).
+    """Return windows-per-prefix.
 
-    windows[prefix] = [ {t, slots: {name: (n, sum, max)}} ... ]
-    locks = [(t, holds, wait, hold, maxhold)], rx200 = [(t, fr, drain, flush)],
-    tx200 = [(t, pkt)] — t is milliseconds, or a synthetic counter when the
-    capture has no timestamps.
+    windows[prefix] = [ {t, slots: {name: (n, sum, max)}} ... ] — t is
+    milliseconds, or a synthetic counter when the capture has no timestamps.
     """
     windows = {}
     current = {}
-    locks, rx200, tx200 = [], [], []
     synth_t = [0]
 
     def now(line):
@@ -61,40 +59,29 @@ def parse(path):
             t, rest, stamped = now(line)
 
             pm = PERF.search(rest)
-            if pm:
-                prefix, name, n, su, mx = pm.groups()
-                cur = current.get(prefix)
-                fresh = (cur is None or name in cur["slots"] or
-                         (stamped and t - cur["t"] > WINDOW_GAP_MS))
-                if fresh:
-                    if not stamped:
-                        synth_t[0] += WINDOW_FALLBACK_MS
-                        t = synth_t[0]
-                    cur = {"t": t, "slots": {}}
-                    windows.setdefault(prefix, []).append(cur)
-                    current[prefix] = cur
-                cur["slots"][name] = (int(n), int(su), int(mx))
+            if not pm:
                 continue
-
-            lm = LOCK.search(rest)
-            if lm:
-                locks.append((t,) + tuple(int(x) for x in lm.groups()))
-                continue
-            rm = RXPROF.search(rest)
-            if rm:
-                rx200.append((t,) + tuple(int(x) for x in rm.groups()))
-                continue
-            tm = TXH.search(rest)
-            if tm:
-                tx200.append((t, int(tm.group(1))))
-    return windows, locks, rx200, tx200
-
-
-def in_span(rows, t0, t1):
-    return [r for r in rows if t0 < r[0] <= t1]
+            prefix, name, n, su, mx = pm.groups()
+            cur = current.get(prefix)
+            fresh = (cur is None or name in cur["slots"] or
+                     (stamped and t - cur["t"] > WINDOW_GAP_MS))
+            if fresh:
+                if not stamped:
+                    synth_t[0] += WINDOW_FALLBACK_MS
+                    t = synth_t[0]
+                cur = {"t": t, "slots": {}}
+                windows.setdefault(prefix, []).append(cur)
+                current[prefix] = cur
+            cur["slots"][name] = (int(n), int(su), int(mx))
+    return windows
 
 
-def report(prefix, wins, locks, rx200, tx200, key):
+def frame_counts(nsprof_wins, slot):
+    """[(t, n)] of a per-frame nsprof slot — the us/frame normalizer."""
+    return [(w["t"], w["slots"].get(slot, (0, 0, 0))[0]) for w in nsprof_wins]
+
+
+def report(prefix, wins, rxframes, txframes, key):
     peak_of = lambda name: max((w["slots"].get(name, (0, 0, 0))[0] for w in wins), default=0)
     if key is None:
         totals = {}
@@ -122,25 +109,13 @@ def report(prefix, wins, locks, rx200, tx200, key):
             N, S, M = slots.get(name, (0, 0, 0))
             slots[name] = (N + n, S + su, max(M, mx))
 
+    # Frame counts (nsprof rx_input / tx_linkout) over this prefix's span,
+    # for the us/frame columns.
     t0, t1 = ts[0] - WINDOW_FALLBACK_MS, ts[-1]
-    lk = in_span(locks, t0, t1)
-    rx = in_span(rx200, t0, t1)
-    tx = in_span(tx200, t0, t1)
-    rxfr = sum(r[1] for r in rx)
-    txfr = sum(r[1] for r in tx)
+    rxfr = sum(n for t, n in rxframes if t0 < t <= t1)
+    txfr = sum(n for t, n in txframes if t0 < t <= t1)
 
     print(f"=== [{prefix}] key={key} windows={len(sel)} wall={wall_ms / 1000.0:.2f}s ===")
-    if lk:
-        holdu = sum(l[3] for l in lk)
-        waitu = sum(l[2] for l in lk)
-        maxh = max(l[4] for l in lk)
-        print(f"lock: held {holdu / wall_us * 100:.0f}%  waited {waitu / wall_us * 100:.0f}%"
-              f"  maxhold {maxh / 1000.0:.1f}ms  holds/s {sum(l[1] for l in lk) / secs:.0f}")
-    if rx:
-        drain = sum(r[2] for r in rx)
-        flush = sum(r[3] for r in rx)
-        print(f"driver: rx {rxfr / secs:.0f} fr/s (drain {drain / max(rxfr, 1):.1f}"
-              f" flush {flush / max(rxfr, 1):.1f} us/fr)   tx {txfr / secs:.0f} fr/s")
 
     hdr = f"{'slot':<16}{'n/s':>9}{'us/event':>10}{'%wall':>8}"
     if rxfr or txfr:
@@ -166,14 +141,20 @@ def main():
     ap.add_argument("--label", help="free-text label printed above the report")
     args = ap.parse_args()
 
-    windows, locks, rx200, tx200 = parse(args.log)
+    windows = parse(args.log)
     if not windows:
         print("no perf report lines found", file=sys.stderr)
         return 1
+
+    # Per-frame normalization comes from the stack's own per-frame slots.
+    ns = windows.get("nsprof", [])
+    rxframes = frame_counts(ns, "rx_input")
+    txframes = frame_counts(ns, "tx_linkout")
+
     if args.label:
         print(f"## {args.label}")
     for prefix in sorted(windows):
-        report(prefix, windows[prefix], locks, rx200, tx200, args.key)
+        report(prefix, windows[prefix], rxframes, txframes, args.key)
     return 0
 
 

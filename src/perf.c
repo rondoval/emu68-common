@@ -15,6 +15,11 @@
 #include <perf.h>
 #include <debug.h>
 
+/* lock_prof's two slot names (see perf.h). Rodata; lives beside perf_report
+ * because it is only referenced when the reporter exists — the profile tier
+ * always carries a sink, the same reason perf_report itself is DEBUG_SINK-gated. */
+const char *const lock_prof_names[LOCKPROF_NSLOTS] = { "lockwait", "lockhold" };
+
 void perf_report(struct perf *pf)
 {
 	for (u32 i = 0; i < pf->pf_nslots; i++) {

@@ -53,12 +53,12 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: base-address resolution (`DT_GetBaseAddress[Virtual]`), property/number reads, `DT_TranslateAddress`, and `DT_GetInterrupt`. |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
-| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and fast `movem`-based block zeroing. |
+| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
-| `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines). Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out without `DEBUG`. Reduce captures with `scripts/perf-report.py`. |
-| `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus a standard `strncmp()` for third-party code. |
+| `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines). Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`. |
+| `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus standard `strncmp()`/`strlen()`/`strlcpy()` for third-party code. |
 | `format.h` | Bounded formatted printing: `_SNPrintf` / `_VSNPrintf`. |
-| `debug.h` | Debug logging (`Kprintf`, `KprintfH`, `KASSERT`, `PrintPistorm`). Output sink set by the `EMU68_DEBUG_BACKEND` backend (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → `debug.lib` serial); compiled out for `off`. See *Debug output backend*. |
+| `debug.h` | Debug logging, one printer per tier (`KprintfP`/`Kprintf`/`KprintfT`, plus `KASSERT` and the shared `PrintPistorm` formatter). Output sink set by `EMU68_DEBUG_BACKEND` (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → `debug.lib` serial); compiled out for `off`. See *Debug output backend and tiers*. |
 | `errors.h` | `errno`-style codes (`EINVAL`, `EIO`, `ETIMEDOUT`, `ENOMEM`, …) used by the ported hardware code. |
 | `minlist.h` | `_NewMinList()` — initialise a `struct MinList` without the Kickstart V45 `NewMinList()` dependency. |
 
@@ -83,11 +83,11 @@ cmake --install build
 
 If you keep dependencies in separate install trees, point `CMAKE_PREFIX_PATH` at the `devicetree.resource` install prefix instead.
 
-### Debug output backend
+### Debug output backend and tiers
 
 This package owns the stack-wide debug backend, selected with the
 `EMU68_DEBUG_BACKEND` cache variable (default `pistorm`) and exported to all
-consumers via the installed `cmake/Emu68CommonDebugBackend.cmake` module:
+consumers via the installed `cmake/Emu68CommonDebug.cmake` module:
 
 ```sh
 cmake -S . -B build ... -DEMU68_DEBUG_BACKEND=serial   # pistorm | serial | off
@@ -99,9 +99,18 @@ cmake -S . -B build ... -DEMU68_DEBUG_BACKEND=serial   # pistorm | serial | off
 | `serial`  | `debug.lib` `KPutChar` → AmigaOS serial console @ 9600 baud   | no       |
 | `off`     | debug output compiled out                                    | yes      |
 
-The module exports `emu68_debug_backend_definitions()` and
-`emu68_debug_backend_finalize(<target> [ROMABLE])`, which downstream components
-call instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
+The backend sets `DEBUG_SINK` (a sink exists) and, for `serial`, `DEBUG_SERIAL`.
+On top of it `EMU68_TIER` (`off` | `profile` | `debug` | `trace`, default `debug`)
+picks what is emitted, as a cumulative ladder — `profile` defines `PROFILE`,
+`debug` adds `DEBUG`, `trace` adds `TRACE`. Backend `off` defines none of them.
+`DEBUG_SINK` is deliberately not a tier macro: it gates the formatter while the
+tier macros gate the printers, so `perf.c`'s reporter stays available to a
+`PROFILE`-tier consumer even when *this* component is built at tier `off`.
+
+The module exports `emu68_debug_definitions()`,
+`emu68_debug_backend_finalize(<target> [ROMABLE])` and the
+`emu68_tier_at_least(<out> <rung>)` predicate, which downstream components call
+instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
 
 ### Cache-ops LVO fallback
 

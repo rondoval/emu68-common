@@ -108,7 +108,7 @@ void dma_mem_init(struct dma_mem_ctx *ctx)
 
 		windows[window_count].start = (ULONG)base;
 		windows[window_count].end = (ULONG)end;
-		KprintfH("[dma_mem] Pi-DRAM window %lu: %08lx..%08lx\n",
+		KprintfT("[dma_mem] Pi-DRAM window %lu: %08lx..%08lx\n",
 				 (ULONG)window_count, (ULONG)base, (ULONG)end - 1);
 		window_count++;
 	}
@@ -144,9 +144,9 @@ void dma_mem_init(struct dma_mem_ctx *ctx)
 	Permit();
 
 	for (u32 i = 0; i < ctx->count; i++)
-		KprintfH("[dma_mem] Emu68 DMA region %lu: %08lx..%08lx\n",
+		KprintfT("[dma_mem] Emu68 DMA region %lu: %08lx..%08lx\n",
 				 (ULONG)i, ctx->regions[i].start, ctx->regions[i].end - 1);
-	KprintfH("[dma_mem] %lu Emu68 RAM header(s) usable for DMA\n", (ULONG)ctx->count);
+	KprintfT("[dma_mem] %lu Emu68 RAM header(s) usable for DMA\n", (ULONG)ctx->count);
 }
 
 /* dma_addr_reachable() is now a static inline in dma_mem.h (per-I/O hot path). */

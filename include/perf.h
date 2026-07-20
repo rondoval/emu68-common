@@ -9,7 +9,10 @@
  * prints every active slot as a delta since the previous report and rezeroes
  * it — call it from the component's own periodic context (~2 s works well).
  *
- * Probes compile to nothing without DEBUG.
+ * Probes compile to nothing below the PROFILE tier. The reporter itself lives
+ * in libcommon.a gated on DEBUG_SINK, not on PROFILE, so emu68-common may sit at
+ * a lower tier than the component calling perf_report() (e.g. TIER=off
+ * PROFILE=lwip-amiga) without leaving an undefined symbol behind.
  *
  * The framework is instance-based so ROM-able drivers can use it: embed the
  * counters and the instance in the unit/device context — no writable
@@ -53,7 +56,7 @@ struct perf {
 	u32 pf_nslots;
 };
 
-#ifdef DEBUG
+#ifdef PROFILE
 
 #include <timing.h>
 
@@ -70,15 +73,23 @@ static inline void perf_add(struct perf *pf, u32 slot, u32 t0)
 #define PERF_T0(var)            u32 var = get_time()
 #define PERF_ADD(pf, slot, var) perf_add((pf), (u32)(slot), (var))
 
-/* Print + zero every active slot (delta reporting). Cold path (perf.c). */
-void perf_report(struct perf *pf);
-
-#else /* !DEBUG */
+#else /* !PROFILE */
 
 #define PERF_T0(var)            do {} while (0)
 #define PERF_ADD(pf, slot, var) do {} while (0)
-#define perf_report(pf)         do { (void)(pf); } while (0)
 
-#endif /* DEBUG */
+#endif /* PROFILE */
+
+/*
+ * Print + zero every active slot (delta reporting). Cold path (perf.c).
+ * Declared for PROFILE-tier callers and for perf.c itself (PERF_IMPL), which is
+ * built whenever a sink exists so the symbol is there for any caller — see the
+ * tier note at the top. Below the PROFILE tier the call vanishes at the caller.
+ */
+#if defined(PROFILE) || defined(PERF_IMPL)
+void perf_report(struct perf *pf);
+#else
+#define perf_report(pf)         do { (void)(pf); } while (0)
+#endif
 
 #endif /* _PERF_H */

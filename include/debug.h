@@ -62,7 +62,8 @@ static inline void PrintPistorm(char *fmt, ...)
 #ifdef DEBUG_HIGH
 #define KprintfH PrintPistorm
 #else
-#define KprintfH(...)
+/* expand to a statement (not empty) so `if (x) KprintfH(...);` keeps a body */
+#define KprintfH(...) ((void)0)
 #endif
 
 #define KASSERT(cond, msg) do { if (!(cond)) KprintfH("[kassert] " msg "\n"); } while (0)

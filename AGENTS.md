@@ -7,11 +7,10 @@
 
 ## Build
 
-- Preferred commands:
-  - `cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.cmake -DCMAKE_PREFIX_PATH=/path/to/emu68-driver-stack -DCMAKE_INSTALL_PREFIX=/path/to/emu68-driver-stack`
-  - `cmake --build build`
-  - `cmake --install build`
-- `devicetree.resource` must be installed first.
+- Build through the superbuild's container wrapper — never host `cmake` (build trees
+  are configured at `/work` inside the toolchain container):
+  - from the `emu68-driver-stack` superbuild root: `./scripts/docker-build.sh --target emu68-common`
+- `devicetree.resource` must be installed first (the superbuild orders this).
 - This component owns the stack-wide debug backend: `EMU68_DEBUG_BACKEND` (default
   `pistorm` | `serial` | `off`), wired through `include/debug.h` and the exported
   `cmake/Emu68CommonDebugBackend.cmake` module (`emu68_debug_backend_definitions()`

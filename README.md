@@ -55,6 +55,7 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
 | `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and fast `movem`-based block zeroing. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
+| `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines). Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out without `DEBUG`. Reduce captures with `scripts/perf-report.py`. |
 | `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus a standard `strncmp()` for third-party code. |
 | `format.h` | Bounded formatted printing: `_SNPrintf` / `_VSNPrintf`. |
 | `debug.h` | Debug logging (`Kprintf`, `KprintfH`, `KASSERT`, `PrintPistorm`). Output sink set by the `EMU68_DEBUG_BACKEND` backend (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → `debug.lib` serial); compiled out for `off`. See *Debug output backend*. |

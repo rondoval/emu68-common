@@ -205,21 +205,30 @@ static struct dma_puddle *dma_pool_grow(struct dma_pool *pool, ULONG need)
 	return pud;
 }
 
+/* The puddle list and every puddle's private MemHeader are shared across the
+ * callers that allocate DMA memory; the netdev ABI does not promise ndo_DmaAlloc
+ * is single-threaded, and a foreign opener's teardown frees on a different task.
+ * Forbid() serialises the list walk and the Exec Allocate/Deallocate against
+ * both. It nests, so dma_pool_grow()'s own Forbid() is harmless here. */
 APTR dma_pool_region_alloc(struct dma_pool *pool, ULONG size)
 {
 	ULONG need = ALIGN_UP(size, MEM_BLOCKSIZE);
 
+	Forbid();
 	for (struct dma_puddle *pud = pool->puddles; pud; pud = pud->next)
 	{
 		APTR ptr = Allocate(&pud->mh, need);
 		if (ptr)
+		{
+			Permit();
 			return ptr;
+		}
 	}
 
 	struct dma_puddle *pud = dma_pool_grow(pool, need);
-	if (pud == NULL)
-		return NULL;
-	return Allocate(&pud->mh, need);
+	APTR ptr = pud ? Allocate(&pud->mh, need) : NULL;
+	Permit();
+	return ptr;
 }
 
 void dma_pool_region_free(struct dma_pool *pool, APTR ptr, ULONG size)
@@ -230,14 +239,17 @@ void dma_pool_region_free(struct dma_pool *pool, APTR ptr, ULONG size)
 	ULONG need = ALIGN_UP(size, MEM_BLOCKSIZE);
 	ULONG a = (ULONG)ptr;
 
+	Forbid();
 	for (struct dma_puddle *pud = pool->puddles; pud; pud = pud->next)
 	{
 		if (a >= (ULONG)pud->mh.mh_Lower && a < (ULONG)pud->mh.mh_Upper)
 		{
 			Deallocate(&pud->mh, ptr, need);
+			Permit();
 			return;
 		}
 	}
+	Permit();
 	Kprintf("[dma_mem] region_free: %08lx not from this pool\n", a);
 }
 

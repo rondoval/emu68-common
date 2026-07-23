@@ -45,6 +45,7 @@ def parse(path):
     windows = {}
     current = {}
     synth_t = [0]
+    stamped_any = [False]
 
     def now(line):
         m = TS.match(line)
@@ -57,6 +58,8 @@ def parse(path):
         for raw in f:
             line = raw.decode("ascii", errors="replace").rstrip()
             t, rest, stamped = now(line)
+            if stamped:
+                stamped_any[0] = True
 
             pm = PERF.search(rest)
             if not pm:
@@ -73,7 +76,7 @@ def parse(path):
                 windows.setdefault(prefix, []).append(cur)
                 current[prefix] = cur
             cur["slots"][name] = (int(n), int(su), int(mx))
-    return windows
+    return windows, stamped_any[0]
 
 
 def frame_counts(nsprof_wins, slot):
@@ -81,7 +84,7 @@ def frame_counts(nsprof_wins, slot):
     return [(w["t"], w["slots"].get(slot, (0, 0, 0))[0]) for w in nsprof_wins]
 
 
-def report(prefix, wins, rxframes, txframes, key):
+def report(prefix, wins, rxframes, txframes, key, stamped):
     peak_of = lambda name: max((w["slots"].get(name, (0, 0, 0))[0] for w in wins), default=0)
     if key is None:
         totals = {}
@@ -98,8 +101,14 @@ def report(prefix, wins, rxframes, txframes, key):
         return
 
     ts = [w["t"] for w in sel]
-    spans = [b - a for a, b in zip(ts, ts[1:]) if b - a < 3000]
-    wall_ms = sum(spans) + (spans[0] if spans else WINDOW_FALLBACK_MS)
+    if stamped:
+        spans = [b - a for a, b in zip(ts, ts[1:]) if b - a < 3000]
+        wall_ms = sum(spans) + (spans[0] if spans else WINDOW_FALLBACK_MS)
+    else:
+        # Synthetic clock: it advances once per window *per prefix*, so a single
+        # prefix's inter-window gaps are not meaningful. Each window is one
+        # report period — assume the fixed cadence, as the docstring promises.
+        wall_ms = len(sel) * WINDOW_FALLBACK_MS
     wall_us = wall_ms * 1000.0
     secs = wall_us / 1e6
 
@@ -141,7 +150,7 @@ def main():
     ap.add_argument("--label", help="free-text label printed above the report")
     args = ap.parse_args()
 
-    windows = parse(args.log)
+    windows, stamped = parse(args.log)
     if not windows:
         print("no perf report lines found", file=sys.stderr)
         return 1
@@ -154,7 +163,7 @@ def main():
     if args.label:
         print(f"## {args.label}")
     for prefix in sorted(windows):
-        report(prefix, windows[prefix], rxframes, txframes, args.key)
+        report(prefix, windows[prefix], rxframes, txframes, args.key, stamped)
     return 0
 
 

@@ -45,7 +45,16 @@ timer. `perf_report(&inst)` prints every active slot as a delta since the last
 report and rezeroes it; call it from the component's own periodic context.
 Probes compile to nothing below the `PROFILE` tier. `scripts/perf-report.py`
 reduces serial captures into per-slot n/s, µs/event and %-of-wall-clock tables,
-with multi-instance and steady-state-window support.
+with multi-instance and steady-state-window support. A lock-profiling facility
+(`lock_prof_*`) samples an Exec `SignalSemaphore`'s held time, wait time, and
+outermost-hold depth, reported alongside the instance timing slots — drives
+lwip-amiga's core-lock instrumentation.
+
+### Driver task + preferences helpers
+
+Shared helpers for spawning and joining a driver's worker task (`drv_task_spawn` /
+`drv_task_join`) and for reading a driver's `ENV:` preferences file, factoring out
+boilerplate the individual drivers previously each carried.
 
 ### `strlen()` / `strlcpy()` freestanding primitives
 
@@ -53,6 +62,15 @@ with multi-instance and steady-state-window support.
 (bounded copy, always NUL-terminates, returns `strlen(src)` so truncation shows
 as a return `>= size`), for the same reason `strncmp()` was added in 1.7.0: the
 `-nostdlib` tree has no libc to supply them.
+
+---
+
+## Improvements / fixes
+
+- **DMA allocation is now thread-safe** — the `dma_mem` region pool guards its allocation
+  path so concurrent allocators can't corrupt its free lists.
+- **`perf-report.py` handles captures with no per-line timestamps** — these no longer
+  collapse the wall-time computation; it falls back to a fixed per-window interval.
 
 ---
 

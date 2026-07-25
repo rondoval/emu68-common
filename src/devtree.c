@@ -64,13 +64,13 @@ s32 DT_TranslateAddress(APTR *address, APTR node)
 		u32 phys_vc4 = (u32)DT_GetNumber(i, address_cells_child);
 		u32 phys_cpu = (u32)DT_GetNumber(i + address_cells_child, address_cells_parent);
 		u32 size = (u32)DT_GetNumber(i + address_cells_child + address_cells_parent, size_cells);
-		KprintfH("[devtree] %s: phys_vc4=0x%08lx phys_cpu=0x%08lx size=0x%08lx\n", __func__, (ULONG)phys_vc4, (ULONG)phys_cpu, (ULONG)size);
+		KprintfT("[devtree] %s: phys_vc4=0x%08lx phys_cpu=0x%08lx size=0x%08lx\n", __func__, (ULONG)phys_vc4, (ULONG)phys_cpu, (ULONG)size);
 
 		if ((u32)*address >= phys_vc4 && (u32)*address < phys_vc4 + size)
 		{
 			u32 offset = phys_cpu - phys_vc4;
 			*address += offset;
-			KprintfH("[devtree] %s: Virtual address=0x%08lx\n", __func__, *address);
+			KprintfT("[devtree] %s: Virtual address=0x%08lx\n", __func__, *address);
 			return 0;
 		}
 	}
@@ -206,7 +206,7 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 	else if (interrupt_type == 1)
 		interrupt_number += 16u; // PPI
 
-#ifdef DEBUG_HIGH
+#ifdef TRACE
 	const u32 interrupt_flags = (u32)DT_GetNumber(ptr + 2, 1);
 	char *trigger;
 	switch (interrupt_flags & 0xf)
@@ -228,7 +228,7 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 		break;
 	}
 
-	KprintfH("[devtree] %s: Found interrupt: irq=%lu trigger=%s\n", __func__, (ULONG)interrupt_number, trigger);
+	KprintfT("[devtree] %s: Found interrupt: irq=%lu trigger=%s\n", __func__, (ULONG)interrupt_number, trigger);
 #endif
 
 	DT_CloseKey(root);

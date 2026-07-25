@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.7.0 LANGUAGES C ASM)
+project(common VERSION 1.8.0 LANGUAGES C ASM)
 
 # Dependencies
 find_package(devicetree CONFIG REQUIRED)
 
-# Debug-output backend selection (shared by the whole stack).
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebugBackend.cmake)
-emu68_debug_backend_definitions()
+# Debug sink + tier selection (shared by the whole stack).
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake)
+emu68_debug_definitions()
 
 # Set default install prefix to ./install subdirectory
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -90,7 +90,7 @@ install(FILES
 	${CMAKE_CURRENT_BINARY_DIR}/Emu68CommonConfigVersion.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheck.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheckScript.cmake
-	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebugBackend.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/emu68_debug_serial_glue.c
 	DESTINATION lib/cmake/Emu68Common

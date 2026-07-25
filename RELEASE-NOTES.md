@@ -1,3 +1,79 @@
+# Release notes — emu68-common 1.8.0
+
+Changes since 1.7.0.
+
+---
+
+## Breaking changes
+
+### Debug output is now a sink + cumulative tier, not a flat `DEBUG`/`DEBUG_HIGH` pair
+
+`cmake/Emu68CommonDebugBackend.cmake` is replaced by `cmake/Emu68CommonDebug.cmake`,
+and its `emu68_debug_backend_definitions()` macro is renamed
+`emu68_debug_definitions()` (`emu68_debug_backend_finalize()` is unchanged). The
+per-component `EMU68_DEBUG_HIGH` option is gone; verbosity is now the cache
+variable `EMU68_TIER` (`off` | `profile` | `debug` | `trace`, default `debug`), a
+cumulative ladder — `profile` defines `PROFILE`, `debug` adds `DEBUG`, `trace`
+adds `TRACE` — each with its own printer in `debug.h` (`KprintfP` / `Kprintf` /
+`KprintfT`). `DEBUG_HIGH`/`KprintfH` are gone; callers move to `TRACE`/`KprintfT`.
+A new `DEBUG_SINK` macro (defined whenever the backend isn't `off`) replaces bare
+`DEBUG` as the formatter's own gate, decoupled from the tier macros that gate the
+printers — this is what lets `perf.c`'s reporter stay linkable from a
+higher-tier consumer even when this component itself is built at tier `off`.
+
+Every component that logs must switch from `emu68_debug_backend_definitions()`
+to `emu68_debug_definitions()`, and from `DEBUG_HIGH`/`KprintfH` to
+`TRACE`/`KprintfT`. With `EMU68_TIER` left at its default (`debug`), output is
+unchanged for existing `Kprintf`/`KASSERT` call sites — only the verbose tier
+needs the rename.
+
+A new `emu68_tier_at_least(<out> <rung>)` CMake predicate is exported for
+components that must gate something the compile definitions alone can't reach
+(e.g. wiring a third-party submodule's own log switches to our tiers).
+
+---
+
+## New features (new APIs / build)
+
+### Per-stage timing framework (`perf.h`, `perf.c`, `scripts/perf-report.py`)
+
+An instance-based profiling facility for throughput work: a component embeds a
+`struct perf` (name table + counter array) in its own unit/device context — no
+writable globals, so it stays usable from ROM-able drivers — and brackets a code
+stage with `PERF_T0(var)` / `PERF_ADD(&inst, SLOT, var)`, sampling the BCM 1 MHz
+timer. `perf_report(&inst)` prints every active slot as a delta since the last
+report and rezeroes it; call it from the component's own periodic context.
+Probes compile to nothing below the `PROFILE` tier. `scripts/perf-report.py`
+reduces serial captures into per-slot n/s, µs/event and %-of-wall-clock tables,
+with multi-instance and steady-state-window support. A lock-profiling facility
+(`lock_prof_*`) samples an Exec `SignalSemaphore`'s held time, wait time, and
+outermost-hold depth, reported alongside the instance timing slots — drives
+lwip-amiga's core-lock instrumentation.
+
+### Driver task + preferences helpers
+
+Shared helpers for spawning and joining a driver's worker task (`drv_task_spawn` /
+`drv_task_join`) and for reading a driver's `ENV:` preferences file, factoring out
+boilerplate the individual drivers previously each carried.
+
+### `strlen()` / `strlcpy()` freestanding primitives
+
+`strutil.h` / `textutil.c` gain a standard `strlen()` and BSD `strlcpy()`
+(bounded copy, always NUL-terminates, returns `strlen(src)` so truncation shows
+as a return `>= size`), for the same reason `strncmp()` was added in 1.7.0: the
+`-nostdlib` tree has no libc to supply them.
+
+---
+
+## Improvements / fixes
+
+- **DMA allocation is now thread-safe** — the `dma_mem` region pool guards its allocation
+  path so concurrent allocators can't corrupt its free lists.
+- **`perf-report.py` handles captures with no per-line timestamps** — these no longer
+  collapse the wall-time computation; it falls back to a fixed per-window interval.
+
+---
+
 # Release notes — emu68-common 1.7.0
 
 Changes since 1.6.0.

@@ -2,7 +2,20 @@
 #ifndef __DEBUG_H
 #define __DEBUG_H
 
-#ifdef DEBUG
+/*
+ * Debug output: one sink, one tier.  cmake/Emu68CommonDebug.cmake owns both.
+ *
+ *   DEBUG_SINK  a sink exists (backend pistorm or serial) -> PrintPistorm below.
+ *               Not a tier: it gates the formatter, the tier macros gate the
+ *               printers, which is how KprintfP can print where Kprintf cannot.
+ *   PROFILE     timing probes + perf_report        -> KprintfP
+ *   DEBUG       asserts and ordinary logging       -> Kprintf, KASSERT
+ *   TRACE       verbose logging                    -> KprintfT
+ *
+ * The tiers are cumulative (trace implies debug implies profile), and backend
+ * "off" defines none of them, so nothing at all is emitted.
+ */
+#ifdef DEBUG_SINK
 #include <stdarg.h>
 
 #ifdef __INTELLISENSE__
@@ -24,10 +37,15 @@
  *
  * PrintPistorm is the shared formatter; some drivers (e.g. xhci) #define their
  * own tagged Kprintf on top of it, so it must exist for whichever backend is set.
+ *
+ * putch is static inline rather than plain static: at the profile tier Kprintf
+ * is a no-op, so a translation unit can include this header and never reach the
+ * formatter — a plain static would then be an -Wunused-function. Taking its
+ * address for RawDoFmt still forces an out-of-line copy where it is used.
  */
 #ifdef DEBUG_SERIAL
 #include <clib/debug_protos.h>
-static void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
+static inline void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
 {
 	(void)dummy;
 	if (data != 0)
@@ -36,7 +54,7 @@ static void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
 	}
 }
 #else
-static void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
+static inline void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
 {
 	(void)dummy;
 	if (data != 0)
@@ -57,21 +75,34 @@ static inline void PrintPistorm(char *fmt, ...)
 	va_end(args);
 }
 
-#define Kprintf PrintPistorm
+#endif /* DEBUG_SINK */
 
-#ifdef DEBUG_HIGH
-#define KprintfH PrintPistorm
+/*
+ * One printer per tier. A disabled printer expands to a statement (not empty) so
+ * `if (x) Kprintf(...);` keeps a body and doesn't trip -Wempty-body.
+ */
+#ifdef PROFILE
+#define KprintfP PrintPistorm
 #else
-#define KprintfH(...)
+#define KprintfP(...) ((void)0)
 #endif
 
-#define KASSERT(cond, msg) do { if (!(cond)) KprintfH("[kassert] " msg "\n"); } while (0)
-
+#ifdef DEBUG
+#define Kprintf PrintPistorm
 #else
-/* Debug off: expand to a statement (not empty) so `if (x) Kprintf(...);` keeps a
- * body and doesn't trip -Wempty-body. */
 #define Kprintf(...) ((void)0)
-#define KprintfH(...) ((void)0)
+#endif
+
+#ifdef TRACE
+#define KprintfT PrintPistorm
+#else
+#define KprintfT(...) ((void)0)
+#endif
+
+/* Asserts are debug-tier: a failed invariant is not verbose chatter. */
+#ifdef DEBUG
+#define KASSERT(cond, msg) do { if (!(cond)) Kprintf("[kassert] " msg "\n"); } while (0)
+#else
 #define KASSERT(cond, msg) ((void)0)
 #endif
 

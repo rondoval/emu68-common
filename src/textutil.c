@@ -34,6 +34,27 @@ int strncmp(const char *s1, const char *s2, __SIZE_TYPE__ n)
 	return 0;
 }
 
+__SIZE_TYPE__ strlen(const char *s)
+{
+	const char *p = s;
+	while (*p != '\0')
+		p++;
+	return (__SIZE_TYPE__)(p - s);
+}
+
+__SIZE_TYPE__ strlcpy(char *dst, const char *src, __SIZE_TYPE__ size)
+{
+	__SIZE_TYPE__ srclen = strlen(src);
+	if (size > 0)
+	{
+		__SIZE_TYPE__ n = srclen < size - 1 ? srclen : size - 1;
+		for (__SIZE_TYPE__ i = 0; i < n; i++)
+			dst[i] = src[i];
+		dst[n] = '\0';
+	}
+	return srclen;
+}
+
 LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len)
 {
 	if (len <= 0)

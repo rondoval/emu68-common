@@ -49,11 +49,13 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `bits.h` | Bit and alignment helpers: `ALIGN_UP`, `DIV_CEIL`, `BIT()`, mask extract/insert/update, `log2_floor_u32/u64`, `round_up_pow2_u32/u64`, and `u64` hi/lo splits. |
 | `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
 | `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
-| `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` plus read-modify-write helpers (`mmio_update/clear/set`). |
+| `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` plus read-modify-write helpers (`mmio_update/clear/set`) and `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout). |
 | `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: base-address resolution (`DT_GetBaseAddress[Virtual]`), property/number reads, `DT_TranslateAddress`, and `DT_GetInterrupt`. |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
-| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree. |
+| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. |
+| `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence). |
+| `drv_timer.h` | A `timer.device` (MICROHZ) instance held open across a burst of waits — one `drv_timer_open()` serves many synchronous sleeps (`drv_timer_sleep_ms`) or periodic arms (`drv_timer_arm_ms` / `drv_timer_consume` / `drv_timer_sigmask`), instead of the open/close dance per wait. Caller-owned state, ROM-safe. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
 | `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines). Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`. |
 | `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus standard `strncmp()`/`strlen()`/`strlcpy()` for third-party code. |

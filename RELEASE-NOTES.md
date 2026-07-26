@@ -1,3 +1,41 @@
+# Release notes — emu68-common 1.9.0
+
+Changes since 1.8.0.
+
+---
+
+## Breaking changes
+
+None.
+
+---
+
+## New features (new APIs / build)
+
+### Shared timer helper (`drv_timer.h`)
+
+A `timer.device` (MICROHZ) instance held open across a burst of waits —
+`drv_timer_open`, then `drv_timer_sleep_ms` / `drv_timer_arm_ms` /
+`drv_timer_consume` / `drv_timer_cancel` / `drv_timer_close` — instead of the
+open/close dance per wait. `drv_task_join`'s internal pacing poll now uses it
+(no behavior change), and it's available directly to drivers for their own
+tick timers.
+
+### `driver_task.h`: unit message-port init and canonical task exit
+
+Two new helpers alongside `drv_task_spawn` / `drv_task_join`:
+`drv_unit_msgport_init()` wires up a `Unit`'s embedded message port, and
+`drv_task_exit()` is the canonical clear-slot-then-signal-parent exit
+sequence. Both replace boilerplate previously duplicated per driver.
+
+### `mmio_poll_timeout()` (`iomem.h`)
+
+Polls a register until it matches a mask, reads back as gone (`0xffffffff`),
+or times out. Replaces hand-rolled poll loops of the same shape across the
+stack.
+
+---
+
 # Release notes — emu68-common 1.8.0
 
 Changes since 1.7.0.

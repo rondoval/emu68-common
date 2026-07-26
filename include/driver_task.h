@@ -45,4 +45,20 @@ s32 drv_task_spawn(APTR ctx, APTR entry, const char *name,
  */
 void drv_task_join(struct Task **slot);
 
+struct Unit;
+
+/*
+ * Initialize a Unit's embedded message port for the owning task: list, signal
+ * bit, PA_SIGNAL.  Returns the allocated signal bit, or -1 (port untouched
+ * enough that no cleanup is owed).
+ */
+BYTE drv_unit_msgport_init(struct Unit *unit);
+
+/*
+ * Canonical task exit: clear the liveness slot FIRST (drv_task_join polls
+ * it), then report CTRL_F for a task that reached its wait loop or CTRL_C for
+ * one that never got there (drv_task_spawn maps CTRL_C to -EIO).
+ */
+void drv_task_exit(struct Task **slot, struct Task *parent, BOOL ranLoop);
+
 #endif

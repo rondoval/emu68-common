@@ -28,8 +28,6 @@
 #include <emu68_features.h>
 #include <strutil.h>
 
-struct ExecBase *SysBase;
-
 static const char verstag[] __attribute__((used)) = VERSTAG;
 
 static int check_rangeops(void)

@@ -22,6 +22,7 @@
 #include <devices/timer.h>
 
 #include <driver_task.h>
+#include <drv_timer.h>
 #include <errors.h>
 #include <minlist.h>
 #include <debug.h>
@@ -106,41 +107,40 @@ void drv_task_join(struct Task **slot)
 
     /* The task clears *slot on its way out, so the join is a poll. A timer paces
      * it; without one the poll still terminates, just hot. */
-    BOOL haveTimer = FALSE;
-    struct MsgPort *timerPort = CreateMsgPort();
-    struct timerequest *timerReq =
-        CreateIORequest(timerPort, sizeof(struct timerequest));
-
-    if (timerPort != NULL && timerReq != NULL)
-    {
-        BYTE result = OpenDevice((CONST_STRPTR) "timer.device", UNIT_VBLANK,
-                                 (struct IORequest *)timerReq, 0);
-        if (result != 0)
-            Kprintf("[drv] %s: cannot open timer.device: %ld\n", __func__, (LONG)result);
-        else
-            haveTimer = TRUE;
-    }
+    struct drv_timer pacer;
+    BOOL haveTimer = drv_timer_open(&pacer);
 
     Signal(*slot, SIGBREAKF_CTRL_C);
     while (*slot != NULL)
     {
         if (haveTimer)
-        {
-            timerReq->tr_node.io_Command = TR_ADDREQUEST;
-            timerReq->tr_time.tv_secs = 0;
-            timerReq->tr_time.tv_micro = 250000;
-            DoIO(&timerReq->tr_node);
-        }
+            drv_timer_sleep_ms(&pacer, 250);
     }
 
     SetSignal(0UL, SIGBREAKF_CTRL_F | SIGBREAKF_CTRL_C);
 
-    if (haveTimer)
-        CloseDevice(&timerReq->tr_node);
-    if (timerReq)
-        DeleteIORequest(&timerReq->tr_node);
-    if (timerPort)
-        DeleteMsgPort(timerPort);
+    drv_timer_close(&pacer);
 
     KprintfT("[drv] %s: task stopped\n", __func__);
+}
+
+BYTE drv_unit_msgport_init(struct Unit *unit)
+{
+    _NewMinList((struct MinList *)&unit->unit_MsgPort.mp_MsgList);
+    unit->unit_MsgPort.mp_SigTask = FindTask(NULL);
+
+    BYTE sigbit = AllocSignal(-1);
+    if (sigbit == -1)
+        return -1;
+
+    unit->unit_MsgPort.mp_SigBit = (UBYTE)sigbit;
+    unit->unit_MsgPort.mp_Flags = PA_SIGNAL;
+    unit->unit_MsgPort.mp_Node.ln_Type = NT_MSGPORT;
+    return sigbit;
+}
+
+void drv_task_exit(struct Task **slot, struct Task *parent, BOOL ranLoop)
+{
+    *slot = NULL;
+    Signal(parent, ranLoop ? SIGBREAKF_CTRL_F : SIGBREAKF_CTRL_C);
 }

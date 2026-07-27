@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.8.0 LANGUAGES C ASM)
+project(common VERSION 1.9.0 LANGUAGES C ASM)
+string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 
 # Dependencies
 find_package(devicetree CONFIG REQUIRED)
@@ -55,6 +56,8 @@ target_link_libraries(common
 	PUBLIC
 		devicetree::devicetree
 )
+
+add_subdirectory(tools)
 
 # Install targets
 install(TARGETS common

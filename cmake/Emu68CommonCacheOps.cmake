@@ -2,11 +2,12 @@
 #
 # EMU68_FORCE_LVO_CACHE_OPS: route cache_ops.h's cache_pre_dma()/cache_post_dma()
 # through the exec LVO (CachePreDMA/CachePostDMA) instead of the emu68 inline
-# LINE-F fast path.  The fast path needs a private range opcode that only a
-# patched Emu68 build understands.  Set this ON when building against an Emu68
-# that has not picked up that opcode yet (CI builds against a released Emu68);
-# leave it OFF for local/dev builds against a patched Emu68 to get the inline
-# fast path.  See emu68-common/include/cache_ops.h.
+# LINE-F fast path.  Both settings are shipped release flavors: ON builds the
+# standard archives that run on any Emu68 release; OFF (the default) builds the
+# "-rangeops" archives whose inline fast path needs an Emu68 with the dcache
+# extensions — those drivers gate device init on emu68_has_dcache_range_ops()
+# (emu68_features.h) and refuse to load on firmware without the opcode.
+# See emu68-common/include/cache_ops.h.
 
 set(EMU68_FORCE_LVO_CACHE_OPS OFF CACHE BOOL
     "Route cache_pre_dma()/cache_post_dma() through the exec LVO instead of the emu68 inline fast path")

@@ -37,7 +37,14 @@ void cache_post_dma(APTR addr, ULONG len, ULONG flags);
 
 A buffer the device writes needs both ops — clean+invalidate before it is armed to hardware, invalidate after DMA — and never just the post op: a dirty line at DMA time corrupts the payload. The private `DMAF_NoSync` flag suppresses the trailing hardware barrier so a batch of ops pays one instead of one per op, closed with a single `emu68_barrier()` (`barrier.h`).
 
-The inline fast path assumes a patched Emu68; set `EMU68_FORCE_LVO_CACHE_OPS` (see *Cache-ops LVO fallback* below) to fall back to the plain exec LVO calls when building against an Emu68 that doesn't have the private opcode.
+The inline fast path needs an Emu68 with the dcache extensions, which advertises the opcode as the `/emu68` device-tree property `dcache-range-ops`; drivers built for it gate device init on `emu68_has_dcache_range_ops()` (`emu68_features.h`) and refuse to load on firmware without it. Set `EMU68_FORCE_LVO_CACHE_OPS` (see *Cache-ops LVO fallback* below) to route through the plain exec LVO calls instead, which run on any Emu68 release.
+
+## emu68check (`tools/`)
+
+A small hosted CLI probe the driver stack's Install script runs from the extracted archive (it is never copied to `C:`). Query-only — all answers are return codes aligned with dos `RETURN_*`:
+
+- `emu68check RANGEOPS` — 0: the firmware has the dcache extensions (`/emu68` `dcache-range-ops` revision 1); 5: running under Emu68 without them; 10: no `devicetree.resource` (not under Emu68 at all).
+- No/bad arguments: usage text, RC 20.
 
 ## Utility headers
 
@@ -49,11 +56,14 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `bits.h` | Bit and alignment helpers: `ALIGN_UP`, `DIV_CEIL`, `BIT()`, mask extract/insert/update, `log2_floor_u32/u64`, `round_up_pow2_u32/u64`, and `u64` hi/lo splits. |
 | `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
 | `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
-| `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` plus read-modify-write helpers (`mmio_update/clear/set`). |
+| `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` plus read-modify-write helpers (`mmio_update/clear/set`) and `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout). |
 | `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: base-address resolution (`DT_GetBaseAddress[Virtual]`), property/number reads, `DT_TranslateAddress`, and `DT_GetInterrupt`. |
+| `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (the raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property, revision 1 — also tells "not under Emu68" apart from "capability absent"; callable anywhere, used by `emu68check`) and `emu68_has_dcache_range_ops()` (the driver init gate — folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`; only the cache-ops consumer components may call the wrapper). |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
-| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree. |
+| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. |
+| `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence). |
+| `drv_timer.h` | A `timer.device` (MICROHZ) instance held open across a burst of waits — one `drv_timer_open()` serves many synchronous sleeps (`drv_timer_sleep_ms`) or periodic arms (`drv_timer_arm_ms` / `drv_timer_consume` / `drv_timer_sigmask`), instead of the open/close dance per wait. Caller-owned state, ROM-safe. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
 | `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines). Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`. |
 | `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus standard `strncmp()`/`strlen()`/`strlcpy()` for third-party code. |
@@ -115,7 +125,7 @@ instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
 ### Cache-ops LVO fallback
 
 `cache_ops.h`'s inline fast path (see *DMA cache maintenance* above) needs a
-private range opcode that only a patched Emu68 build understands. Set
+private range opcode that only an Emu68 with the dcache extensions understands. Set
 `EMU68_FORCE_LVO_CACHE_OPS` to route `cache_pre_dma()`/`cache_post_dma()`
 through the plain exec LVO instead — exported the same way as the debug
 backend, via the installed `cmake/Emu68CommonCacheOps.cmake` module
@@ -125,6 +135,16 @@ backend, via the installed `cmake/Emu68CommonCacheOps.cmake` module
 cmake -S . -B build ... -DEMU68_FORCE_LVO_CACHE_OPS=ON   # default: OFF
 ```
 
-Default `OFF` gets the inline fast path (for local builds against a patched
-Emu68); the driver stack's CI sets it `ON` because it builds against a released
-Emu68 that lacks the private opcode.
+Both settings are shipped release flavors: `ON` builds the standard archives
+that run on any Emu68 release; `OFF` (the default) builds the `-rangeops`
+archives, whose drivers gate device init on `emu68_has_dcache_range_ops()`
+(`emu68_features.h`) and refuse to load on firmware without the opcode.
+
+`ON` is a compatibility fallback, not a free one. Exec's
+`CachePreDMA`/`CachePostDMA` are patched by the `68040.library` embedded in
+the Emu68 image; without the dcache extensions that library walks the buffer
+one `cpushl dc,(An)` per 32-byte line in emulated 68k code, so callers that
+maintain cache per DMA buffer pay heavily. Measured end to end, an LVO build
+of the netdev `genet.device` moves 104/79 Mb/s TCP on such firmware versus
+698/477 Mb/s on an Emu68 with the extensions — see the stack README's
+*Cache-op routing* section.

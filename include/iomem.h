@@ -81,4 +81,28 @@ static inline void mmio_set16(volatile __le16 *addr, u16 set_mask)
 	mmio_update16(addr, 0, set_mask);
 }
 
+
+/* Poll *ptr until (*ptr & mask) == want, the device reads as gone
+ * (0xffffffff), or timeout_us expires (0 = wait forever).  Returns the last
+ * value read; the caller judges success by re-testing the mask. */
+#include <timing.h>
+static inline u32 mmio_poll_timeout(volatile u32 *ptr, u32 mask, u32 want, u32 timeout_us)
+{
+	u32 deadline = get_time() + timeout_us;
+	u32 result;
+
+	for (;;)
+	{
+		result = mmio_read32(ptr);
+		if ((result & mask) == want)
+			break;
+		if (result == 0xffffffffU)
+			break;
+		if (timeout_us && time_deadline_passed(get_time(), deadline))
+			break;
+	}
+
+	return result;
+}
+
 #endif

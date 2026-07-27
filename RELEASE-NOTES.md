@@ -1,3 +1,68 @@
+# Release notes — emu68-common 1.9.0
+
+Changes since 1.8.0.
+
+---
+
+## Breaking changes
+
+None.
+
+---
+
+## New features (new APIs / build)
+
+### Shared timer helper (`drv_timer.h`)
+
+A `timer.device` (MICROHZ) instance held open across a burst of waits —
+`drv_timer_open`, then `drv_timer_sleep_ms` / `drv_timer_arm_ms` /
+`drv_timer_consume` / `drv_timer_cancel` / `drv_timer_close` — instead of the
+open/close dance per wait. `drv_task_join`'s internal pacing poll now uses it
+(no behavior change), and it's available directly to drivers for their own
+tick timers.
+
+### `driver_task.h`: unit message-port init and canonical task exit
+
+Two new helpers alongside `drv_task_spawn` / `drv_task_join`:
+`drv_unit_msgport_init()` wires up a `Unit`'s embedded message port, and
+`drv_task_exit()` is the canonical clear-slot-then-signal-parent exit
+sequence. Both replace boilerplate previously duplicated per driver.
+
+### `mmio_poll_timeout()` (`iomem.h`)
+
+Polls a register until it matches a mask, reads back as gone (`0xffffffff`),
+or times out. Replaces hand-rolled poll loops of the same shape across the
+stack.
+
+### `emu68_features.h`: runtime firmware-capability detection
+
+Two layers over the `/emu68` device-tree node's `dcache-range-ops` property
+(u32 capability revision; revision 1 is the contract):
+
+- `emu68_probe_dcache_range_ops()` — the raw three-state probe (present /
+  absent / no `devicetree.resource` at all), callable from anywhere;
+  `emu68check` is a consumer.
+- `emu68_has_dcache_range_ops()` — the driver init gate, so drivers built
+  for the `cache_ops.h` inline range-opcode fast path refuse to load on
+  firmware that would Line-F trap on it. Under `EMU68_FORCE_LVO_CACHE_OPS`
+  it folds to `TRUE`; only the cache-ops consumer components may call the
+  wrapper.
+
+The `cache_ops.h` contract changed accordingly: the inline path is no longer
+"emitted unconditionally" — rangeops builds must gate device init on the
+wrapper, and both flavor settings are now shipped release configurations.
+
+### `emu68check`: capability probe for the installer (new, `tools/`)
+
+The component now also ships a small hosted CLI tool, installed to `C/` of
+the stack archives and run by the Install script from the extracted archive
+(never copied to `C:`). Query-only, RC-based (dos `RETURN_*` aligned):
+`emu68check RANGEOPS` reports the dcache-extension capability — 0 present,
+5 absent, 10 not running under Emu68 — and anything else prints usage and
+returns 20.
+
+---
+
 # Release notes — emu68-common 1.8.0
 
 Changes since 1.7.0.

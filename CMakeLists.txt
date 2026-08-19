@@ -28,14 +28,15 @@ add_library(common STATIC ${common_sources})
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c PROPERTIES
 	COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns;-fno-builtin")
 
+# CPU/FPU/frame-pointer flags come from the stack toolchain (cmake/toolchain.cmake,
+# knobs M68K_CPU / M68K_FPU) and must not be repeated here: a hardcoded -m68040 is
+# emitted after CMAKE_C_FLAGS and would silently override M68K_CPU.
 target_compile_options(common
 	PRIVATE
 		-ffreestanding
 		-nostdlib
 		-nostartfiles
 		-O3
-		-m68040
-		-fomit-frame-pointer
 		-Wall
 		-Wconversion
 		-Wsign-conversion

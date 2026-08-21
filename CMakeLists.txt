@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.9.0 LANGUAGES C ASM)
+project(common VERSION 1.9.1 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 
 # Dependencies

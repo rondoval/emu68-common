@@ -1,3 +1,22 @@
+# Release notes — emu68-common 1.9.1
+
+Changes since 1.9.0.
+
+---
+
+## Breaking changes
+
+None.
+
+---
+
+## Build & tooling
+
+- Hardcoded `-m68040` removed — it overrode the toolchain's `M68K_CPU`, so
+  non-68040 builds produced 68040 code.
+
+---
+
 # Release notes — emu68-common 1.9.0
 
 Changes since 1.8.0.

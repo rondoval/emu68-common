@@ -93,6 +93,49 @@ void perf_report(struct perf *pf);
 #endif
 
 /*
+ * perf_hist — a value distribution beside the timing slots, for the questions a
+ * count, a sum and a maximum cannot answer (how many frames does one interrupt
+ * find, how long between two of them). Fixed buckets with caller-chosen bounds;
+ * ownership as for struct perf: bounds and names are rodata, the buckets live in
+ * the caller's context (ROM-able), are written under PROFILE only and keep their
+ * storage in every tier. perf_hist_report() prints one line,
+ *   [<prefix>] hist <name>: n=<samples> <=<bound>:<count> ... ><last bound>:<count>
+ * with empty buckets left out, and rezeroes. The line deliberately does not
+ * match perf_report's grammar, so the reducer ignores it.
+ */
+struct perf_hist {
+	const char *ph_prefix;  /* report tag, the component's perf prefix */
+	const char *ph_name;
+	const u32 *ph_bounds;   /* ph_nbounds ascending inclusive upper bounds, rodata */
+	u32 *ph_buckets;        /* caller-owned, zero-initialized: ph_nbounds + 1, the last one open */
+	u32 ph_nbounds;
+};
+
+#ifdef PROFILE
+
+static inline void perf_hist_add(struct perf_hist *ph, u32 value)
+{
+	u32 i = 0;
+	while (i < ph->ph_nbounds && value > ph->ph_bounds[i])
+		i++;
+	ph->ph_buckets[i]++;
+}
+
+#define PERF_HIST_ADD(ph, value) perf_hist_add((ph), (u32)(value))
+
+#else /* !PROFILE */
+
+#define PERF_HIST_ADD(ph, value) do {} while (0)
+
+#endif /* PROFILE */
+
+#if defined(PROFILE) || defined(PERF_IMPL)
+void perf_hist_report(struct perf_hist *ph);
+#else
+#define perf_hist_report(ph)    do { (void)(ph); } while (0)
+#endif
+
+/*
  * lock_prof — a SignalSemaphore wait/hold profiler, built on the perf slots
  * above. A self-contained instance: it owns a two-slot perf report ("lockwait",
  * "lockhold") so a component reports its core lock through the same

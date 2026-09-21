@@ -38,4 +38,25 @@ void perf_report(struct perf *pf)
 	}
 }
 
+void perf_hist_report(struct perf_hist *ph)
+{
+	u32 samples = 0;
+	for (u32 i = 0; i <= ph->ph_nbounds; i++)
+		samples += ph->ph_buckets[i];
+	if (samples == 0)
+		return;
+
+	PrintPistorm("[%s] hist %s: n=%lu", (ULONG)ph->ph_prefix, (ULONG)ph->ph_name, (ULONG)samples);
+	for (u32 i = 0; i <= ph->ph_nbounds; i++) {
+		if (ph->ph_buckets[i] == 0)
+			continue;
+		if (i < ph->ph_nbounds)
+			PrintPistorm(" <=%lu:%lu", (ULONG)ph->ph_bounds[i], (ULONG)ph->ph_buckets[i]);
+		else
+			PrintPistorm(" >%lu:%lu", (ULONG)ph->ph_bounds[i - 1], (ULONG)ph->ph_buckets[i]);
+		ph->ph_buckets[i] = 0;
+	}
+	PrintPistorm("\n");
+}
+
 #endif /* DEBUG_SINK */

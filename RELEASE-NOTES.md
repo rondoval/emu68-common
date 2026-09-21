@@ -1,3 +1,53 @@
+# Release notes — emu68-common 1.10.0
+
+Changes since 1.9.1.
+
+---
+
+## Breaking changes
+
+None.
+
+---
+
+## New features (new APIs / build)
+
+### `perf.h`: value histograms beside the timing slots (`perf_hist`)
+
+A `struct perf` slot answers "how long did this stage take" with a count, a sum
+and a maximum. Some questions need the shape of the values instead — how many
+frames one interrupt finds waiting, how far apart two interrupts are — and there
+an average hides precisely the tail that matters.
+
+`struct perf_hist` is a fixed-bucket distribution of a `u32` value, with the
+same ownership rules as `struct perf`: the ascending bounds array, the name and
+the report prefix are rodata, the buckets live in the caller's context. No
+writable globals, so it stays usable from a ROM-able driver.
+
+- `PERF_HIST_ADD(ph, value)` — one bucket increment; compiles out below the
+  `PROFILE` tier, exactly like `PERF_ADD`.
+- `perf_hist_report(ph)` — prints one line and rezeroes, to be called from the
+  component's periodic reporting context beside `perf_report()`. Lives in
+  `perf.c` under `DEBUG_SINK`, so, like `perf_report()`, a `PROFILE`-tier
+  consumer can call it even when emu68-common itself is built at a lower tier.
+
+The bucket storage is declared at every tier, so a `struct perf_hist` member
+costs the same context bytes whatever the build is set to and nothing else in
+the surrounding struct moves when the tier changes.
+
+The report line deliberately does *not* follow `perf_report()`'s grammar:
+
+```
+[<prefix>] hist <name>: n=<samples> <=<bound>:<count> ... ><last bound>:<count>
+```
+
+Empty buckets are omitted, and a histogram with no samples prints nothing.
+`scripts/perf-report.py` only matches the `<name>: n=… sum=…us` slot grammar,
+so it ignores these lines and a capture carrying histograms reduces exactly as
+one without them.
+
+---
+
 # Release notes — emu68-common 1.9.1
 
 Changes since 1.9.0.

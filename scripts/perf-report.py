@@ -17,6 +17,8 @@ stack's own per-frame slot counts — ``nsprof rx_input`` for RX and
 ``nsprof tx_linkout`` for TX — so any capture that includes the nsprof
 instance gets us/frame for every prefix's slots. (genet's ``[genet] txh:``
 ring-health line is a separate TX-wedge diagnostic and is not reduced here.)
+perf.h's ``[<prefix>] hist <name>:`` bucket lines do not match this grammar
+either, and are likewise passed over — read those straight from the capture.
 
 Usage:
   perf-report.py <capture.log> [--key SLOT] [--label TEXT]

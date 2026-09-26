@@ -5,6 +5,7 @@
 #include <types.h>
 
 struct Task;
+struct ExecBase;
 
 /*
  * A driver worker task's lifecycle, shared by the storage and network drivers:
@@ -35,7 +36,7 @@ struct Task;
  * launched), -EIO if the task started but its initialisation failed (its memory
  * is already reclaimed by then).
  */
-s32 drv_task_spawn(APTR ctx, APTR entry, const char *name,
+s32 drv_task_spawn(struct ExecBase *SysBase, APTR ctx, APTR entry, const char *name,
                    ULONG stackBytes, BYTE pri);
 
 /*
@@ -43,7 +44,7 @@ s32 drv_task_spawn(APTR ctx, APTR entry, const char *name,
  * a 250 ms timer.device poll (a busy-poll if timer.device will not open). A NULL
  * or already-clear slot returns at once.
  */
-void drv_task_join(struct Task **slot);
+void drv_task_join(struct ExecBase *SysBase, struct Task **slot);
 
 struct Unit;
 
@@ -52,13 +53,13 @@ struct Unit;
  * bit, PA_SIGNAL.  Returns the allocated signal bit, or -1 (port untouched
  * enough that no cleanup is owed).
  */
-BYTE drv_unit_msgport_init(struct Unit *unit);
+BYTE drv_unit_msgport_init(struct ExecBase *SysBase, struct Unit *unit);
 
 /*
  * Canonical task exit: clear the liveness slot FIRST (drv_task_join polls
  * it), then report CTRL_F for a task that reached its wait loop or CTRL_C for
  * one that never got there (drv_task_spawn maps CTRL_C to -EIO).
  */
-void drv_task_exit(struct Task **slot, struct Task *parent, BOOL ranLoop);
+void drv_task_exit(struct ExecBase *SysBase, struct Task **slot, struct Task *parent, BOOL ranLoop);
 
 #endif

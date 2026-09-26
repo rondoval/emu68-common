@@ -1,65 +1,85 @@
 /* SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+ */
 /*
- * memset_movem.S — bulk byte-fill via movem.l (the > MEM_FILL_4_MAX path of
- * memset()).  Stores 16 longs (one 64-byte "block") per inner iteration by
- * pre-decrementing from the end of the region.  The 8 movem source registers
- * (d0-d4/a2-a4) are pre-loaded with the broadcast fill value, so value 0 costs
- * exactly what the old zero-only routine did and any other byte comes for free.
+ * memset_movem.S — the stack memset(): a longword loop for short fills,
+ * movem.l blocks for long ones; any alignment.
  *
- *   void mem_fill_asm_movem_impl(ULONG *end, ULONG blocks, ULONG value);
- *     end    = one-past-the-last long of the block region (fills downward)
- *     blocks = number of 64-byte (16-long) blocks
- *     value  = fill pattern, byte already broadcast to all four byte lanes
+ *   void *memset(void *dst, int c, __SIZE_TYPE__ n);
+ *
+ * Same shape and constraints as memcpy_movem.S (see there for why): no Exec
+ * call, no writable data (interrupt-callable, ROM-safe), 68020 or later
+ * (misaligned longword stores; mulu.l), no forward branch taken on the common
+ * paths, one loop, an overlapping final store instead of a byte tail:
+ *   n < 4              three byte stores at 0, n-1 and n/2 (n == 0 returns);
+ *   4 <= n < 64        longwords while below the last long, then the long
+ *                      ending at n;
+ *   n >= 64            64-byte blocks as two movem.l stores of 8 registers,
+ *                      then the 64-byte block ending at n.
+ * The fill byte is broadcast to a longword once. The result is returned in d0
+ * and a0.
  */
+/* below this, the long loop; from here on, blocks (measured: the block path
+ * wins from its minimum, one whole block) */
+#define MEMSET_SMALL 64
+
 	.text
 	.even
-	.globl _mem_fill_asm_movem_impl
-	.globl mem_fill_asm_movem_impl
+	.globl _memset
+	.globl memset
 
-_mem_fill_asm_movem_impl:
-mem_fill_asm_movem_impl:
-	move.l 4(%sp), %a0          | end pointer
-	move.l 8(%sp), %d0          | blocks
+_memset:
+memset:
+	move.l 4(%sp), %a0          | dst
+	moveq #0, %d1
+	move.b 11(%sp), %d1         | c: the low byte of the int argument
+	mulu.l #0x01010101, %d1     | broadcast to all four byte lanes
+	move.l 12(%sp), %d0         | n
+	cmp.l #MEMSET_SMALL, %d0
+	bcc.s .Lbig
+	subq.l #4, %d0              | d0 = n - 4: offset of the last long
+	bcs.s .Ltiny
+	lea (%a0,%d0.l), %a1        | a1 = dst + n - 4
+.Llong:
+	move.l %d1, (%a0)+
+	cmpa.l %a0, %a1
+	bhi.s .Llong                | while below the last long
+	move.l %d1, (%a1)           | the long ending at n
+.Ldone:
+	move.l 4(%sp), %d0          | return dst
+	movea.l %d0, %a0
+	rts
+
+.Ltiny:                             | n = 0..3
+	addq.l #4, %d0
 	beq.s .Ldone
-	move.l 12(%sp), %d1         | value (read before pushing callee-saved regs)
+	move.b %d1, (%a0)
+	move.b %d1, -1(%a0,%d0.l)
+	lsr.l #1, %d0
+	move.b %d1, (%a0,%d0.l)
+	bra.s .Ldone
 
-	movem.l %d2-%d5/%d7/%a2-%a4, -(%sp)
-	move.l %d0, %d7             | d7 = block counter (d0 reused as fill reg below)
-
-	move.l %d1, %d0             | broadcast value into all 8 movem registers
-	move.l %d1, %d2             | (d1 is itself part of the d0-d4 set)
+.Lbig:                              | n >= MEMSET_SMALL
+	movem.l %d2-%d7/%a2-%a3, -(%sp)
+	move.l %d1, %d2             | the pattern in all 8 store registers
 	move.l %d1, %d3
 	move.l %d1, %d4
+	move.l %d1, %d5
+	move.l %d1, %d6
+	move.l %d1, %d7
 	movea.l %d1, %a2
-	movea.l %d1, %a3
-	movea.l %d1, %a4
-
-	swap %d7
-	tst.w %d7
-	beq.s .Lsetup_low
-
-.Louter_loop:
-	moveq #-1, %d5
-
-.Linner_full:
-	movem.l %d0-%d4/%a2-%a4, -(%a0)
-	movem.l %d0-%d4/%a2-%a4, -(%a0)
-	dbra %d5, .Linner_full
-	subq.w #1, %d7
-	bne.s .Louter_loop
-
-.Lsetup_low:
-	swap %d7
-	subq.w #1, %d7
-	bmi.s .Lrestore
-
-.Lloop:
-	movem.l %d0-%d4/%a2-%a4, -(%a0)
-	movem.l %d0-%d4/%a2-%a4, -(%a0)
-	dbra %d7, .Lloop
-
-.Lrestore:
-	movem.l (%sp)+, %d2-%d5/%d7/%a2-%a4
-
-.Ldone:
-	rts
+	moveq #-64, %d2
+	and.l %d0, %d2
+	lea (%a0,%d2.l), %a3        | a3 = end of the whole blocks
+	move.l %d1, %d2
+.Lblock:
+	movem.l %d1-%d7/%a2, (%a0)
+	movem.l %d1-%d7/%a2, 32(%a0)
+	lea 64(%a0), %a0
+	cmpa.l %a3, %a0
+	bne.s .Lblock
+	and.l #63, %d0
+	sub.l #64, %d0              | back to the start of the block ending at n
+	adda.l %d0, %a0
+	movem.l %d1-%d7/%a2, (%a0)
+	movem.l %d1-%d7/%a2, 32(%a0)
+	movem.l (%sp)+, %d2-%d7/%a2-%a3
+	bra.s .Ldone

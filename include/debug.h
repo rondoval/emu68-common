@@ -17,61 +17,51 @@
  */
 #ifdef DEBUG_SINK
 #include <stdarg.h>
-
-#ifdef __INTELLISENSE__
-#include <clib/exec_protos.h>
-#else
-#ifndef EXEC_BASE_NAME
-#define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
-#endif
-#include <proto/exec.h>
-#endif
+#include <format.h>
 
 /*
- * Both backends format with RawDoFmt and differ only in where each byte goes:
+ * Both backends format with fmt_vformat (format.h: C argument rules, so %d/%u/%x
+ * read the whole 32-bit value; no Exec call) and differ only in where each byte
+ * goes:
  *   pistorm - magic address 0xdeadbeef, which Emu68/PiStorm traps and prints on
- *             the Pi console.
- *   serial  - debug.lib KPutChar -> console (serial port @ 9600 baud), the same
- *             serial path KPrintF uses.
+ *             the Pi console.  No Exec, no SysBase.
+ *   serial  - Exec's RawPutChar (private LVO -516, the kprintf path), so
+ *             anything that redirects it (Sashimi and the like) sees the output;
+ *             otherwise it goes to the serial port at the system's baud rate.
+ *             Debug printing has no context to carry a SysBase, so this sink —
+ *             and only this one. Check-no-abs4 allowlists it; release builds have
+ * 			   no serial sink.
  *
  * PrintPistorm is the shared formatter; some drivers (e.g. xhci) #define their
  * own tagged Kprintf on top of it, so it must exist for whichever backend is set.
  *
- * putch is static inline rather than plain static: at the profile tier Kprintf
- * is a no-op, so a translation unit can include this header and never reach the
- * formatter — a plain static would then be an -Wunused-function. Taking its
- * address for RawDoFmt still forces an out-of-line copy where it is used.
+ * debug_putch is static inline rather than plain static: at the profile tier
+ * Kprintf is a no-op, so a translation unit can include this header and never
+ * reach the formatter — a plain static would then be an -Wunused-function.
+ * Taking its address still forces an out-of-line copy where it is used.
  */
+static inline void debug_putch(UBYTE data, APTR dummy)
+{
+	(void)dummy;
 #ifdef DEBUG_SERIAL
-#include <clib/debug_protos.h>
-static inline void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
-{
-	(void)dummy;
-	if (data != 0)
-	{
-		KPutChar(data);
-	}
-}
+	/* RawPutChar(d0) has no NDK prototype; call the LVO directly.  It may
+	 * change d0/d1/a0/a1 (scratch) and needs a6 = SysBase. */
+	register ULONG ch asm("d0") = data;
+	asm volatile("move.l 4.w,%%a6\n\t"
+	             "jsr -516(%%a6)"
+	             : "+d"(ch)
+	             :
+	             : "d1", "a0", "a1", "a6", "cc", "memory");
 #else
-static inline void putch(UBYTE data asm("d0"), APTR dummy asm("a3"))
-{
-	(void)dummy;
-	if (data != 0)
-	{
-		*(UBYTE *)0xdeadbeef = data;
-	}
-}
+	*(volatile UBYTE *)0xdeadbeefUL = data;
 #endif
+}
 
-static inline void PrintPistorm(char *fmt, ...)
+static inline void PrintPistorm(const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstrict-prototypes"
-	RawDoFmt((CONST_STRPTR)fmt, args, (APTR)putch, NULL);
-#pragma GCC diagnostic pop
+	fmt_vformat(debug_putch, NULL, (CONST_STRPTR)fmt, args);
 	va_end(args);
 }
 

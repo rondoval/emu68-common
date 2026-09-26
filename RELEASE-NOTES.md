@@ -1,4 +1,4 @@
-# Release notes — emu68-common 1.10.0
+# Release notes — emu68-common 2.0.0
 
 Changes since 1.9.1.
 
@@ -6,11 +6,86 @@ Changes since 1.9.1.
 
 ## Breaking changes
 
-None.
+### Helpers that call Exec take the caller's `SysBase`
+
+Nothing in emu68-common reads the Exec base from address 4 any more (on PiStorm
+that read is an Amiga-bus cycle, ~1.5 µs). Every helper that calls Exec now gets
+the base from its caller. Where a context struct exists the base is stored in it
+once, so later calls on that context need no new argument:
+
+| Changed signature | Stores the base in |
+|---|---|
+| `dma_mem_init(ctx, SysBase)` | `ctx`; `dma_pool_create()` copies it into the pool, which covers `dma_alloc`/`dma_zalloc`/`dma_free` |
+| `slab_cache_init(cache, SysBase, meta_pool, dma_pool, ...)` | `cache`, for `slab_grow`/`slab_alloc`/`slab_cache_destroy` |
+| `reset_guard_install(rg, SysBase, prepare, user, name)` | `rg`, for the reset handlers and `reset_guard_remove` |
+| `drv_timer_open(t, SysBase)` | `t`, for the other `drv_timer_*` calls |
+| `drv_task_spawn(SysBase, ...)`, `drv_task_join(SysBase, ...)`, `drv_task_exit(SysBase, ...)`, `drv_unit_msgport_init(SysBase, unit)` | — (argument) |
+| `DT_FindByPHandle`, `DT_GetAlias`, `DT_GetBaseAddress`, `DT_GetBaseAddressVirtual`, `DT_GetPropertyValueULONG`, `DT_TranslateAddress`, `DT_GetInterrupt`: `SysBase` first | — (argument) |
+| `emu68_probe_dcache_range_ops(SysBase)`, `emu68_has_dcache_range_ops(SysBase)` | — (argument) |
+
+`memory.h` and `debug.h` no longer fall back to `$4` when the includer has not
+bound `EXEC_BASE_NAME`: an Exec call without a `SysBase` in scope is now a
+compile error rather than a silent bus read.
+
+### Debug output no longer uses debug.lib
+
+`Kprintf` and friends format with emu68-common's own formatter (below) instead
+of `RawDoFmt`, so the pistorm backend makes no Exec call at all. The serial
+backend calls Exec's `RawPutChar` itself instead of linking debug.lib — output
+still goes wherever `kprintf` output goes, so Sashimi and the like keep working:
+`-ldebug` and the `__divsi3` glue (`cmake/emu68_debug_serial_glue.c`) are gone,
+and serial builds now pass the ROM check like the others. `debug.h`'s byte sink is renamed
+`putch` → `debug_putch`, for the few callers that feed it to a formatter
+themselves.
+
+### Formatting follows C's argument rules; `_SNPrintf` returns C's value
+
+Debug output and `_SNPrintf`/`_VSNPrintf` no longer follow `RawDoFmt`'s rule
+that an argument is 16-bit unless the directive says `l`: every argument is one
+32-bit cell, so a bare `%d`, `%u` or `%x` now reads the same value as `%ld`/`%lu`/`%lx`.
+`%p` is new (8 hex digits); `%b` (BCPL string) is gone.
+
+`_SNPrintf`/`_VSNPrintf` now return what C's `snprintf` returns: the length of
+the whole string without the terminating NUL (it used to count the NUL). No
+in-tree caller uses the value.
 
 ---
 
 ## New features (new APIs / build)
+
+### One printf engine, without Exec (`format.h`)
+
+The stack's formatter, used by the debug printers, `_SNPrintf`/`_VSNPrintf`, and
+lwip-amiga's log, diag and `vsyslog` output (which had a copy of its own):
+`%[-][0][width][.prec][h|l|z]{d i u x X c s p %}` with C argument rules, no Exec
+call and no writable data — interrupt-safe, ROM-safe, no `SysBase` needed.
+
+- `fmt_vformat(putch, out, fmt, va_list)` and `fmt_aformat(putch, out, fmt,
+  const ULONG *args)` stream the result to a callback, taking arguments from a
+  `va_list` or from an array of 32-bit cells (the AmigaOS `vsyslog`/`VPrintf`
+  convention).
+- `_SNPrintfArgs(buf, size, fmt, args)` is the array counterpart of `_SNPrintf`.
+
+### `memcpy` and `memset`: one asm routine each, callable from interrupts
+
+`memcpy` (was a `CopyMem` wrapper) and `memset` (was C size buckets) are now
+one asm routine each, shaped for the Emu68 JIT: a longword loop below 64
+bytes, `movem.l` blocks from there, any alignment (68020+). Both are roughly
+twice as fast on small sizes and faster than `CopyMem` at every size, e.g.
+`memcpy` 8 B 142 → 67 ns, 1448 B 353 → 229 ns.
+
+They make no Exec call and own no writable data, so `memcpy`, `memset` and
+`memmove` (which forwards to `memcpy` when the regions don't overlap) are
+interrupt-callable and
+ROM-safe. Consumers pick this up without a source change.
+
+### `iomem.h`: relaxed MMIO accessors
+
+`mmio_read32_relaxed` / `mmio_write32_relaxed` are the plain volatile access
+without the trailing `emu68_barrier()`. MMIO accesses stay in program order
+among themselves but are not ordered against normal memory, so the caller
+closes a batch of them with one explicit `emu68_barrier()` wherever that
+ordering matters, paying one barrier instead of one per access.
 
 ### `perf.h`: value histograms beside the timing slots (`perf_hist`)
 
@@ -45,6 +120,17 @@ Empty buckets are omitted, and a histogram with no samples prints nothing.
 `scripts/perf-report.py` only matches the `<name>: n=… sum=…us` slot grammar,
 so it ignores these lines and a capture carrying histograms reduces exactly as
 one without them.
+
+---
+
+## Improvements / fixes
+
+- **`pool_alloc` / `pool_zalloc` / `pool_free` and the LVO-flavour
+  `cache_pre_dma` / `cache_post_dma` are now macros** — the Exec call expands in
+  the caller, so a file that binds `EXEC_BASE_NAME` to a local `SysBase` cached
+  in fast RAM uses it instead of reading `$4` (an Amiga-bus cycle on PiStorm,
+  ~1.5 µs) per call. Call sites are unchanged; only taking their address stops
+  working, and no in-tree consumer does.
 
 ---
 

@@ -44,12 +44,28 @@ static inline void mmio_write8_impl(u8 value, volatile __le8 *addr)
 	emu68_barrier();
 }
 
+/* Relaxed: no emu68_barrier().  MMIO accesses stay in program order among
+ * themselves but are not ordered against normal memory, so the caller closes
+ * a batch of them with one explicit emu68_barrier() wherever that ordering
+ * matters.  Use the barriered accessors when in doubt. */
+static inline u32 mmio_read32_relaxed_impl(const volatile __le32 *addr)
+{
+	return le32(*addr);
+}
+
+static inline void mmio_write32_relaxed_impl(u32 value, volatile __le32 *addr)
+{
+	*addr = le32(value);
+}
+
 #define mmio_read32(addr) mmio_read32_impl((const volatile __le32 *)(addr))
 #define mmio_write32(value, addr) mmio_write32_impl((value), (volatile __le32 *)(addr))
 #define mmio_read16(addr) mmio_read16_impl((const volatile __le16 *)(addr))
 #define mmio_write16(value, addr) mmio_write16_impl((value), (volatile __le16 *)(addr))
 #define mmio_read8(addr) mmio_read8_impl((const volatile __le8 *)(addr))
 #define mmio_write8(value, addr) mmio_write8_impl((value), (volatile __le8 *)(addr))
+#define mmio_read32_relaxed(addr) mmio_read32_relaxed_impl((const volatile __le32 *)(addr))
+#define mmio_write32_relaxed(value, addr) mmio_write32_relaxed_impl((value), (volatile __le32 *)(addr))
 
 static inline void mmio_update32(volatile __le32 *addr, u32 clear_mask, u32 set_mask)
 {

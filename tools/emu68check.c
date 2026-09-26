@@ -32,7 +32,7 @@ static const char verstag[] __attribute__((used)) = VERSTAG;
 
 static int check_rangeops(void)
 {
-    switch (emu68_probe_dcache_range_ops())
+    switch (emu68_probe_dcache_range_ops(SysBase))
     {
     case EMU68_PROBE_PRESENT:
         return RETURN_OK;

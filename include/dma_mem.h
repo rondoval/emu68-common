@@ -39,13 +39,14 @@ struct dma_mem_region
 
 struct dma_mem_ctx
 {
+	struct ExecBase *sysBase; /* the caller's, from dma_mem_init(); pools copy it */
 	u32 count; /* entries in regions[]; each carries its own bounds + header */
 	struct dma_mem_region regions[DMA_MEM_MAX_REGIONS];
 };
 
 /* Discover the Emu68 RAM regions into @ctx (clears and fills it).  Call once early in
  * driver init, before dma_pool_create()/dma_addr_reachable(). */
-void dma_mem_init(struct dma_mem_ctx *ctx);
+void dma_mem_init(struct dma_mem_ctx *ctx, struct ExecBase *SysBase);
 
 /* TRUE iff [addr, addr+len) lies entirely within Emu68 (DMA-reachable) RAM.
  * Returns FALSE if @ctx is NULL or found no regions (fail safe -> caller bounces).

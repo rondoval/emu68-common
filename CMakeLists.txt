@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.10.0 LANGUAGES C ASM)
+project(common VERSION 2.0.0 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 
 # Dependencies
@@ -23,8 +23,8 @@ add_library(common STATIC ${common_sources})
 
 # Freestanding C runtime memory primitives (memset/memcpy/memmove/memcmp) that
 # GCC may synthesise at -O3.  Compile their definitions with the loop-idiom and
-# builtin recognition disabled so the compiler does not rewrite, e.g., memcpy()'s
-# own copy loop into a call to memcpy() (infinite recursion).
+# builtin recognition disabled so the compiler does not rewrite, e.g., memmove()'s
+# own copy loop into a call to memmove() (infinite recursion).
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c PROPERTIES
 	COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns;-fno-builtin")
 
@@ -96,6 +96,5 @@ install(FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheckScript.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
-	${CMAKE_CURRENT_SOURCE_DIR}/cmake/emu68_debug_serial_glue.c
 	DESTINATION lib/cmake/Emu68Common
 )

@@ -4,7 +4,6 @@
 #include <clib/devicetree_protos.h>
 #else
 #define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #include <proto/devicetree.h>
 #endif
@@ -25,7 +24,7 @@ u64 DT_GetNumber(const u32 *ptr, u32 cells)
 	return value;
 }
 
-u32 DT_GetPropertyValueULONG(APTR key, const char *propname, u32 def_val, BOOL check_parent)
+u32 DT_GetPropertyValueULONG(struct ExecBase *SysBase, APTR key, const char *propname, u32 def_val, BOOL check_parent)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	u32 ret = def_val;
@@ -48,15 +47,15 @@ u32 DT_GetPropertyValueULONG(APTR key, const char *propname, u32 def_val, BOOL c
 	return ret;
 }
 
-s32 DT_TranslateAddress(APTR *address, APTR node)
+s32 DT_TranslateAddress(struct ExecBase *SysBase, APTR *address, APTR node)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	const u32 *ranges = DT_GetPropValue(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
 	const u32 len = DT_GetPropLen(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
 
-	const u32 address_cells_parent = DT_GetPropertyValueULONG(DT_GetParent(node), "#address-cells", 2, FALSE);
-	const u32 address_cells_child = DT_GetPropertyValueULONG(node, "#address-cells", 2, FALSE);
-	const u32 size_cells = DT_GetPropertyValueULONG(node, "#size-cells", 2, FALSE);
+	const u32 address_cells_parent = DT_GetPropertyValueULONG(SysBase, DT_GetParent(node), "#address-cells", 2, FALSE);
+	const u32 address_cells_child = DT_GetPropertyValueULONG(SysBase, node, "#address-cells", 2, FALSE);
+	const u32 size_cells = DT_GetPropertyValueULONG(SysBase, node, "#size-cells", 2, FALSE);
 	const u32 cells_per_record = address_cells_parent + address_cells_child + size_cells;
 
 	for (const u32 *i = ranges; i < ranges + len / sizeof(u32); i += cells_per_record)
@@ -78,7 +77,7 @@ s32 DT_TranslateAddress(APTR *address, APTR node)
 	return -1;
 }
 
-APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias)
+APTR DT_GetBaseAddressVirtual(struct ExecBase *SysBase, CONST_STRPTR alias)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey(alias);
@@ -89,15 +88,15 @@ APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias)
 	}
 
 	const APTR parent = DT_GetParent(key);
-	const u32 address_cells_parent = DT_GetPropertyValueULONG(parent, "#address-cells", 2, FALSE);
+	const u32 address_cells_parent = DT_GetPropertyValueULONG(SysBase, parent, "#address-cells", 2, FALSE);
 	APTR address = (APTR)(ULONG)DT_GetNumber(DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg")), address_cells_parent);
-	DT_TranslateAddress(&address, parent);
+	DT_TranslateAddress(SysBase, &address, parent);
 	DT_CloseKey(key);
 
 	return address;
 }
 
-APTR DT_GetBaseAddress(CONST_STRPTR alias)
+APTR DT_GetBaseAddress(struct ExecBase *SysBase, CONST_STRPTR alias)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey(alias);
@@ -107,7 +106,7 @@ APTR DT_GetBaseAddress(CONST_STRPTR alias)
 		return NULL;
 	}
 
-	u32 address_cells = DT_GetPropertyValueULONG(DT_GetParent(key), "#address-cells", 2, FALSE);
+	u32 address_cells = DT_GetPropertyValueULONG(SysBase, DT_GetParent(key), "#address-cells", 2, FALSE);
 
 	const u32 *reg = DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg"));
 	if (reg != NULL)
@@ -120,7 +119,7 @@ APTR DT_GetBaseAddress(CONST_STRPTR alias)
 	return NULL;
 }
 
-CONST_STRPTR DT_GetAlias(CONST_STRPTR alias)
+CONST_STRPTR DT_GetAlias(struct ExecBase *SysBase, CONST_STRPTR alias)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey((CONST_STRPTR) "/aliases");
@@ -142,7 +141,7 @@ CONST_STRPTR DT_GetAlias(CONST_STRPTR alias)
 	return NULL;
 }
 
-APTR DT_FindByPHandle(APTR key, u32 phandle)
+APTR DT_FindByPHandle(struct ExecBase *SysBase, APTR key, u32 phandle)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
@@ -155,7 +154,7 @@ APTR DT_FindByPHandle(APTR key, u32 phandle)
 	{
 		for (APTR c = DT_GetChild(key, NULL); c; c = DT_GetChild(key, c))
 		{
-			APTR found = DT_FindByPHandle(c, phandle);
+			APTR found = DT_FindByPHandle(SysBase, c, phandle);
 			if (found)
 				return found;
 		}
@@ -163,7 +162,7 @@ APTR DT_FindByPHandle(APTR key, u32 phandle)
 	return NULL;
 }
 
-s32 DT_GetInterrupt(APTR key, u32 index)
+s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	/* Get interrupt information
@@ -171,14 +170,14 @@ s32 DT_GetInterrupt(APTR key, u32 index)
 	 * We're looking for two interrupts: one for TX/RX events, one for link changes.
 	 */
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
-	APTR interrupt_parent = DT_FindByPHandle(root, DT_GetPropertyValueULONG(root, "interrupt-parent", 0, TRUE));
+	APTR interrupt_parent = DT_FindByPHandle(SysBase, root, DT_GetPropertyValueULONG(SysBase, root, "interrupt-parent", 0, TRUE));
 	if (interrupt_parent == NULL)
 	{
 		Kprintf("[devtree] %s: Failed to find interrupt-parent\n", __func__);
 		DT_CloseKey(root);
 		return -1;
 	}
-	const u32 interrupt_cells = DT_GetPropertyValueULONG(interrupt_parent, "#interrupt-cells", 1, FALSE);
+	const u32 interrupt_cells = DT_GetPropertyValueULONG(SysBase, interrupt_parent, "#interrupt-cells", 1, FALSE);
 
 	APTR prop = DT_FindProperty(key, (CONST_STRPTR) "interrupts");
 	if (prop == NULL)

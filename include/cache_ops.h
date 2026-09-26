@@ -134,13 +134,28 @@ static inline void emu68_dcache_inv(const void *addr, ULONG len, BOOL nosync)
 
 /* Driver-facing wrappers.  `flags` takes DMA_ReadFromRAM / DMA_WriteToRAM /
  * DMAF_NoSync combinations (direction table above) — pass compile-time
- * constants and the branches fold away. */
-static inline void cache_pre_dma(APTR addr, ULONG len, ULONG flags)
-{
+ * constants and the branches fold away.
+ *
+ * cache_post_dma is invalidate-only by design: a range armed with
+ * DMA_ReadFromRAM (or one the device did not modify) must simply not be passed
+ * to it — no site does, so there is no runtime flag check; the exec vector, not
+ * this path, serves generic callers.  Its only honoured flag bit is DMAF_NoSync.
+ */
 #ifdef EMU68_FORCE_LVO_CACHE_OPS
-	ULONG l = len;
-	CachePreDMA(addr, &l, flags);
+/* LVO flavour: macros, so the exec call expands in the caller, where
+ * EXEC_BASE_NAME may be a local SysBase cached in fast RAM (see memory.h). */
+#define cache_pre_dma(addr, len, flags) do {                                 \
+	ULONG cache_len_ = (len);                                                \
+	CachePreDMA((addr), &cache_len_, (flags));                               \
+} while (0)
+
+#define cache_post_dma(addr, len, flags) do {                                \
+	ULONG cache_len_ = (len);                                                \
+	CachePostDMA((addr), &cache_len_, (flags));                              \
+} while (0)
 #else
+static inline void cache_pre_dma_impl(APTR addr, ULONG len, ULONG flags)
+{
 	ULONG dir = flags & (DMA_ReadFromRAM | DMA_WriteToRAM);
 	if (dir == DMA_ReadFromRAM)
 		emu68_dcache_clean(addr, len, (flags & DMAF_NoSync) != 0);
@@ -148,21 +163,25 @@ static inline void cache_pre_dma(APTR addr, ULONG len, ULONG flags)
 		emu68_dcache_inv(addr, len, (flags & DMAF_NoSync) != 0);
 	else /* neither or both: bidirectional / conservative default */
 		emu68_dcache_clean_inv(addr, len, (flags & DMAF_NoSync) != 0);
-#endif
 }
 
-/* Invalidate-only by design: a range armed with DMA_ReadFromRAM (or one the
- * device did not modify) must simply not be passed here — no site does, so
- * there is no runtime flag check; the exec vector, not this path, serves
- * generic callers.  The only honoured flag bit is DMAF_NoSync. */
-static inline void cache_post_dma(APTR addr, ULONG len, ULONG flags)
+static inline void cache_post_dma_impl(APTR addr, ULONG len, ULONG flags)
 {
-#ifdef EMU68_FORCE_LVO_CACHE_OPS
-	ULONG l = len;
-	CachePostDMA(addr, &l, flags);
-#else
 	emu68_dcache_inv(addr, len, (flags & DMAF_NoSync) != 0);
-#endif
 }
+
+/* Range-op flavour: no exec call, but the caller's EXEC_BASE_NAME is still
+ * evaluated (and discarded - free), so both flavours need the same binding in
+ * scope and a SysBase local taken only for these ops is used in either. */
+#define cache_pre_dma(addr, len, flags) do {                                 \
+	(void)(EXEC_BASE_NAME);                                                  \
+	cache_pre_dma_impl((addr), (len), (flags));                              \
+} while (0)
+
+#define cache_post_dma(addr, len, flags) do {                                \
+	(void)(EXEC_BASE_NAME);                                                  \
+	cache_post_dma_impl((addr), (len), (flags));                             \
+} while (0)
+#endif
 
 #endif /* _CACHE_OPS_H */

@@ -12,6 +12,7 @@ struct slab_node {
 
 struct slab_cache {
 	void             *free_list;
+	struct ExecBase  *sysBase;   /* the caller's, from slab_cache_init() */
 	APTR              meta_pool; /* Exec pool: slab nodes (+ data when dma_pool == NULL) */
 	struct dma_pool  *dma_pool;  /* region pool: DMA data; NULL => CPU-only slab */
 	struct slab_node *slabs;
@@ -22,7 +23,8 @@ struct slab_cache {
 
 /* @dma_pool == NULL makes a CPU-only slab (data from @meta_pool); a non-NULL
  * @dma_pool makes the data DMA-reachable (Emu68 RAM). */
-void  slab_cache_init(struct slab_cache *cache, APTR meta_pool, struct dma_pool *dma_pool,
+void  slab_cache_init(struct slab_cache *cache, struct ExecBase *SysBase,
+                      APTR meta_pool, struct dma_pool *dma_pool,
                       ULONG obj_size, ULONG obj_align, ULONG slab_capacity);
 void  slab_cache_destroy(struct slab_cache *cache);
 void *slab_grow(struct slab_cache *cache);

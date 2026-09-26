@@ -3,7 +3,6 @@
 #include <clib/exec_protos.h>
 #else
 #define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #endif
 
@@ -13,7 +12,8 @@
 
 #define SLAB_DEFAULT_SIZE 262144UL
 
-void slab_cache_init(struct slab_cache *cache, APTR meta_pool, struct dma_pool *dma_pool,
+void slab_cache_init(struct slab_cache *cache, struct ExecBase *SysBase,
+                     APTR meta_pool, struct dma_pool *dma_pool,
                      ULONG obj_size, ULONG obj_align, ULONG slab_capacity)
 {
 	/* DMA data must own whole cache lines; CPU-only data just needs to thread the
@@ -31,6 +31,7 @@ void slab_cache_init(struct slab_cache *cache, APTR meta_pool, struct dma_pool *
 	}
 
 	cache->free_list     = NULL;
+	cache->sysBase       = SysBase;
 	cache->meta_pool     = meta_pool;
 	cache->dma_pool      = dma_pool;
 	cache->slabs         = NULL;
@@ -41,6 +42,7 @@ void slab_cache_init(struct slab_cache *cache, APTR meta_pool, struct dma_pool *
 
 void slab_cache_destroy(struct slab_cache *cache)
 {
+	struct ExecBase *SysBase = cache->sysBase;
 	struct slab_node *node = cache->slabs;
 
 	while (node) {
@@ -59,6 +61,7 @@ void slab_cache_destroy(struct slab_cache *cache)
 
 void *slab_grow(struct slab_cache *cache)
 {
+	struct ExecBase *SysBase = cache->sysBase;
 	struct slab_node *node = pool_alloc(cache->meta_pool, sizeof(*node));
 	if (!node)
 		return NULL;

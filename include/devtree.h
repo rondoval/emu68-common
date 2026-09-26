@@ -10,14 +10,17 @@
 
 #include <types.h>
 
-APTR DT_FindByPHandle(APTR key, u32 phandle);
-CONST_STRPTR DT_GetAlias(CONST_STRPTR alias);
+struct ExecBase;
 
-APTR DT_GetBaseAddress(CONST_STRPTR alias);
-APTR DT_GetBaseAddressVirtual(CONST_STRPTR alias);
-u32 DT_GetPropertyValueULONG(APTR key, const char *propname, u32 def_val, BOOL check_parent);
+/* Each helper opens devicetree.resource through the caller's SysBase. */
+APTR DT_FindByPHandle(struct ExecBase *SysBase, APTR key, u32 phandle);
+CONST_STRPTR DT_GetAlias(struct ExecBase *SysBase, CONST_STRPTR alias);
+
+APTR DT_GetBaseAddress(struct ExecBase *SysBase, CONST_STRPTR alias);
+APTR DT_GetBaseAddressVirtual(struct ExecBase *SysBase, CONST_STRPTR alias);
+u32 DT_GetPropertyValueULONG(struct ExecBase *SysBase, APTR key, const char *propname, u32 def_val, BOOL check_parent);
 u64 DT_GetNumber(const u32 *ptr, u32 cells);
-s32 DT_TranslateAddress(APTR *address, APTR node);
-s32 DT_GetInterrupt(APTR key, u32 index);
+s32 DT_TranslateAddress(struct ExecBase *SysBase, APTR *address, APTR node);
+s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index);
 
 #endif // DEV_TREE_H

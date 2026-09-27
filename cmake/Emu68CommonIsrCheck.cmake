@@ -34,12 +34,15 @@ function(emu68_isr_z_check target)
     if(NOT Python3_Interpreter_FOUND)
         message(FATAL_ERROR "emu68_isr_z_check(${target}): python3 not found")
     endif()
+    # Paired components (genet sana2/netdev, xhci context/legacy) share both a
+    # project name and a target name, so name the source tree in the log line.
+    get_filename_component(_isr_component "${CMAKE_SOURCE_DIR}" NAME)
     add_custom_command(TARGET ${target} POST_BUILD
         COMMAND ${Python3_EXECUTABLE} ${_EMU68_ISR_Z_CHECK_SCRIPT}
             --objdump ${CMAKE_OBJDUMP}
             --objdir ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target}.dir
             ${ARG_SERVERS}
-        COMMENT "Interrupt-server Z check: ${target} (${ARG_SERVERS})"
+        COMMENT "Interrupt-server Z check: ${_isr_component} ${target} (${ARG_SERVERS})"
         VERBATIM
     )
 endfunction()

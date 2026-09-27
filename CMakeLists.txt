@@ -94,7 +94,13 @@ install(FILES
 	${CMAKE_CURRENT_BINARY_DIR}/Emu68CommonConfigVersion.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheck.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheckScript.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonIsrCheck.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
 	DESTINATION lib/cmake/Emu68Common
+)
+
+# emu68_isr_z_check() resolves its helper relative to the cmake module dir
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/scripts/isr-z-check.py
+	DESTINATION lib/cmake/scripts
 )

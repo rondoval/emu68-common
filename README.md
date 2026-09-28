@@ -119,10 +119,10 @@ picks what is emitted, as a cumulative ladder — `profile` defines `PROFILE`,
 tier macros gate the printers, so `perf.c`'s reporter stays available to a
 `PROFILE`-tier consumer even when *this* component is built at tier `off`.
 
-The module exports `emu68_debug_definitions()`,
-`emu68_debug_backend_finalize(<target> [ROMABLE])` and the
+The module exports `emu68_debug_definitions()` and the
 `emu68_tier_at_least(<out> <rung>)` predicate, which downstream components call
-instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
+instead of hardcoding `-DDEBUG`.  (ROM-ability is no longer part of this module:
+it is an `ASSERT` in `ldscripts/module.lds`, applied by `emu68_module_layout()`.)
 
 ### Cache-ops LVO fallback
 

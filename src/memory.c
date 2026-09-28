@@ -21,6 +21,24 @@
  * This translation unit is compiled -fno-tree-loop-distribute-patterns
  * -fno-builtin (see CMakeLists.txt) so the copy/compare loops below are not
  * rewritten into self-referential calls (e.g. memmove() calling memmove()).
+ *
+ * This TU is compiled -fno-lto (see CMakeLists.txt), which puts it on the same footing as
+ * its two siblings memcpy_movem.S and memset_movem.S: assembly is never LTO'd, so those
+ * two are always real objects.  That is the whole reason it works.
+ *
+ * GCC synthesises these four calls during *ltrans* codegen -- after the IR compilation
+ * phase has ended -- and ld can still satisfy such a late reference out of an archive,
+ * but only when the member is a real object.  bsdsocket.library's map shows exactly that:
+ * all three pulled by an ltrans object, not by anything in the IR.
+ *
+ *     libcommon.a(memcpy_movem.S.obj)   <- ...ltrans0.ltrans.o (memcpy)
+ *     libcommon.a(memory.c.obj)         <- ...ltrans1.ltrans.o (memmove)
+ *     libcommon.a(memset_movem.S.obj)   <- ...ltrans0.ltrans.o (memset)
+ *
+ * An IR member cannot be brought in and compiled at that point, so built as LTO IR this
+ * TU leaves `undefined reference to memcmp/memmove' at the final link.  Tested both ways
+ * on gcc 16.2, and __attribute__((used)) does NOT help: the problem is not that the body
+ * is dropped, it is that the member can no longer be codegen'd.
  */
 
 #include <types.h>

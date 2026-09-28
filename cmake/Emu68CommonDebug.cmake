@@ -92,14 +92,3 @@ macro(emu68_debug_definitions)
         endif()
     endif()
 endmacro()
-
-# emu68_debug_backend_finalize(<target> [ROMABLE])
-# Finalize a linked target: run the ROM check for ROMABLE targets (the
-# freestanding .device/.library binaries that must stay ROM-able).  Every
-# backend is ROM-able, so the check runs whichever is selected.
-function(emu68_debug_backend_finalize target)
-    cmake_parse_arguments(ARG "ROMABLE" "" "" ${ARGN})
-    if(ARG_ROMABLE AND COMMAND emu68_rom_check)
-        emu68_rom_check(${target})
-    endif()
-endfunction()

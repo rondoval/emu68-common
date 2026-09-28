@@ -41,12 +41,11 @@ macros gate the printers — which is what keeps `perf.c`'s reporter linkable
 from a higher-tier consumer.
 
 The module exports the functions every debug-emitting component calls
-instead of hardcoding `-DDEBUG`/`emu68_rom_check`: `emu68_debug_definitions()`
-(sets `DEBUG_SINK`/`DEBUG_SERIAL` + tier macros), `emu68_tier_at_least(<out>
+instead of hardcoding `-DDEBUG`: `emu68_debug_definitions()` (sets
+`DEBUG_SINK`/`DEBUG_SERIAL` + tier macros) and `emu68_tier_at_least(<out>
 <rung>)` (wires third-party log switches, e.g. nvme.device's mounter
-submodule), and `emu68_debug_backend_finalize(<tgt> [ROMABLE])` (serial: link
-`-ldebug` + the weak `__divsi3` glue; else: run the ROM check for `ROMABLE`
-targets).
+submodule).  ROM-ability is not part of this module: it is an `ASSERT` in
+`ldscripts/module.lds`, applied by `emu68_module_layout()`.
 
 Note: `debug.h` includes `<proto/exec.h>` only under `DEBUG_SINK`; sources
 that call exec functions must include it themselves (the `#define

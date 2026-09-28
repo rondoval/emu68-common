@@ -31,6 +31,5 @@ target_link_options(emu68check PRIVATE -s)
 target_link_libraries(emu68check PRIVATE common)
 
 # Hosted CLI program: not ROMABLE, so no ROM check.
-emu68_debug_backend_finalize(emu68check)
 
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/emu68check DESTINATION C)

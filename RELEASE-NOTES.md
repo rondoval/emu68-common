@@ -76,8 +76,12 @@ twice as fast on small sizes and faster than `CopyMem` at every size, e.g.
 
 They make no Exec call and own no writable data, so `memcpy`, `memset` and
 `memmove` (which forwards to `memcpy` when the regions don't overlap) are
-interrupt-callable and
-ROM-safe. Consumers pick this up without a source change.
+interrupt-callable and ROM-safe. Consumers pick this up without a source change.
+
+### `strcmp`, `atoi`, `strcpy`
+
+Alongside `strlen`/`strncmp`/`strlcpy`, so a `-nostdlib` module needs no libc for
+them.
 
 ### `iomem.h`: relaxed MMIO accessors
 
@@ -120,6 +124,37 @@ Empty buckets are omitted, and a histogram with no samples prints nothing.
 `scripts/perf-report.py` only matches the `<name>: n=… sum=…us` slot grammar,
 so it ignores these lines and a capture carrying histograms reduces exactly as
 one without them.
+
+---
+
+## Build & tooling
+
+### Module layout is a linker-script contract
+
+`emu68_module_layout(<target> [WRITABLE])` links a freestanding `.device`/`.library`
+through a shared `ldscripts/module.lds`, which states what source order plus
+`__attribute__((no_reorder))` only approximated — and stops approximating at all once LTO
+re-partitions the TUs: the do-not-execute stub at offset 0 (HUNK has no entry field, so
+`LoadSeg()` runs whatever is there), the romtag right after it, `_endOfCode` at the true
+end of `.text`, and a link-time `ASSERT` against any writable section, which retires the
+`emu68_rom_check()` POST_BUILD gate. `WRITABLE` waives that assert for a module never
+placed in ROM; the entry check has no waiver at all, so a stub that wants to do more than
+`moveq #-1,d0; rts` must still start with the `moveq`.
+
+### Interrupt servers declare themselves (`intserver.h`)
+
+A server answers with the Z condition code, not D0, and m68k GCC will happily end one
+with `move.l (sp)+,dN` — which sets Z from the restored register.
+`EMU68_INTSERVER(<name>)` gives a server a section of its own, so
+`emu68_isr_z_check(<t> SERVERS <name>…)` can slice it out of the *linked* module and check
+the bytes that ship, with LTO on or off. It also rejects a tail call out of the server, a
+call as the last thing to touch the CCR, and a server that ships undeclared.
+
+### Link-time optimization
+
+`emu68_enable_lto(<target>)` sets CMake's `INTERPROCEDURAL_OPTIMIZATION`;
+`emu68_lto_keep_real_objects(<t> <src>…)` holds a TU back. `EMU68_LTO` defaults to ON and
+degrades to a warning where binutils was built without plugin support.
 
 ---
 

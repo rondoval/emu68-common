@@ -42,9 +42,12 @@ function(emu68_lto_probe)
 	endif()
 endfunction()
 
+# Both conditions at every use site: EMU68_LTO_USABLE is cached by the probe and survives a
+# later EMU68_LTO=OFF (emu68_lto_probe() returns early instead of re-probing), so testing
+# usability alone would pin LTO on for the life of the build directory.
 function(emu68_enable_lto target)
 	emu68_lto_probe()
-	if(EMU68_LTO_USABLE)
+	if(EMU68_LTO AND EMU68_LTO_USABLE)
 		set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 		# GCC privatises symbols during LTO and stamps visibility on them; HUNK has no
 		# such concept, so the m68k-amigaos backend warns "visibility attribute not
@@ -74,7 +77,7 @@ endfunction()
 # the section EMU68_INTSERVER() gives each server, so it works with or without LTO.
 function(emu68_lto_keep_real_objects target)
 	emu68_lto_probe()
-	if(EMU68_LTO_USABLE)
+	if(EMU68_LTO AND EMU68_LTO_USABLE)
 		foreach(_s IN LISTS ARGN)
 			set_property(SOURCE ${_s} APPEND PROPERTY COMPILE_OPTIONS -fno-lto)
 		endforeach()

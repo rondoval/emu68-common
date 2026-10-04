@@ -67,7 +67,16 @@ void dma_mem_init(struct dma_mem_ctx *ctx, struct ExecBase *SysBase)
 		return;
 	}
 
-	APTR mem_prop = DT_FindProperty(DT_OpenKey((CONST_STRPTR) "/memory"), (CONST_STRPTR) "reg");
+	APTR memory = DT_OpenKey((CONST_STRPTR) "/memory");
+	if (memory == NULL)
+	{
+		Kprintf("[dma_mem] no /memory node; no DMA regions\n");
+		return;
+	}
+
+	/* A property and its value stay valid after the key is closed */
+	APTR mem_prop = DT_FindProperty(memory, (CONST_STRPTR) "reg");
+	DT_CloseKey(memory);
 	if (mem_prop == NULL)
 	{
 		Kprintf("[dma_mem] no /memory reg property; no DMA regions\n");
@@ -83,6 +92,7 @@ void dma_mem_init(struct dma_mem_ctx *ctx, struct ExecBase *SysBase)
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
 	ULONG addr_cells = DT_GetPropertyValueULONG(SysBase, root, "#address-cells", 2, FALSE);
 	ULONG size_cells = DT_GetPropertyValueULONG(SysBase, root, "#size-cells", 1, FALSE);
+	DT_CloseKey(root);
 
 	/* Parse the raw /memory window(s): the Pi-DRAM physical extent.  These are used
 	 * only to discriminate which MEMF_FAST headers are Emu68 RAM (Zorro III /

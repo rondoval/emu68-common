@@ -47,34 +47,76 @@ u32 DT_GetPropertyValueULONG(struct ExecBase *SysBase, APTR key, const char *pro
 	return ret;
 }
 
-s32 DT_TranslateAddress(struct ExecBase *SysBase, APTR *address, APTR node)
+/*
+ * dt_translate - an address on the bus @bus, as the bus's parent sees it.
+ *
+ * The bus node's "ranges" lists <child address, parent address, size> records:
+ * the child address and the size in the bus's own #address-cells and #size-cells,
+ * the parent address in the #address-cells of the bus's parent.  An empty "ranges"
+ * means both sides use the same addresses.  One level only: on Emu68 the parent of
+ * /soc and /scb is the root, and its addresses are the ones the 68k side uses.
+ *
+ * Returns NULL if the bus has no "ranges", no record covers @addr, or the result
+ * does not fit a 32-bit pointer.
+ */
+static APTR dt_translate(struct ExecBase *SysBase, APTR bus, u64 addr)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	const u32 *ranges = DT_GetPropValue(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
-	const u32 len = DT_GetPropLen(DT_FindProperty(node, (CONST_STRPTR) "ranges"));
-
-	const u32 address_cells_parent = DT_GetPropertyValueULONG(SysBase, DT_GetParent(node), "#address-cells", 2, FALSE);
-	const u32 address_cells_child = DT_GetPropertyValueULONG(SysBase, node, "#address-cells", 2, FALSE);
-	const u32 size_cells = DT_GetPropertyValueULONG(SysBase, node, "#size-cells", 2, FALSE);
-	const u32 cells_per_record = address_cells_parent + address_cells_child + size_cells;
-
-	for (const u32 *i = ranges; i < ranges + len / sizeof(u32); i += cells_per_record)
+	APTR prop = DT_FindProperty(bus, (CONST_STRPTR) "ranges");
+	if (prop == NULL)
 	{
-		u32 phys_vc4 = (u32)DT_GetNumber(i, address_cells_child);
-		u32 phys_cpu = (u32)DT_GetNumber(i + address_cells_child, address_cells_parent);
-		u32 size = (u32)DT_GetNumber(i + address_cells_child + address_cells_parent, size_cells);
-		KprintfT("[devtree] %s: phys_vc4=0x%08lx phys_cpu=0x%08lx size=0x%08lx\n", __func__, (ULONG)phys_vc4, (ULONG)phys_cpu, (ULONG)size);
+		Kprintf("[devtree] %s: No ranges to translate address 0x%lx%08lx with\n", __func__, (ULONG)(addr >> 32), (ULONG)addr);
+		return NULL;
+	}
 
-		if ((u32)*address >= phys_vc4 && (u32)*address < phys_vc4 + size)
+	const u32 child_cells = DT_GetPropertyValueULONG(SysBase, bus, "#address-cells", 2, FALSE);
+	const u32 parent_cells = DT_GetPropertyValueULONG(SysBase, DT_GetParent(bus), "#address-cells", 2, FALSE);
+	const u32 size_cells = DT_GetPropertyValueULONG(SysBase, bus, "#size-cells", 1, FALSE);
+	const u32 record_cells = child_cells + parent_cells + size_cells;
+
+	const u32 *rec = DT_GetPropValue(prop);
+	u32 cells_left = DT_GetPropLen(prop) / sizeof(u32);
+
+	u64 translated = addr; /* an empty "ranges": the same address on both sides */
+	BOOL covered = (cells_left == 0);
+	for (; !covered && record_cells != 0 && cells_left >= record_cells; rec += record_cells, cells_left -= record_cells)
+	{
+		const u64 child = DT_GetNumber(rec, child_cells);
+		const u64 parent = DT_GetNumber(rec + child_cells, parent_cells);
+		const u64 size = DT_GetNumber(rec + child_cells + parent_cells, size_cells);
+		KprintfT("[devtree] %s: child=0x%lx%08lx parent=0x%lx%08lx size=0x%lx%08lx\n", __func__,
+				 (ULONG)(child >> 32), (ULONG)child, (ULONG)(parent >> 32), (ULONG)parent, (ULONG)(size >> 32), (ULONG)size);
+
+		/* Does this record cover addr, i.e. child <= addr < child + size?  The upper
+		 * bound is tested as an offset: child + size wraps to 0 for a record that
+		 * ends at the top of the address space, addr - child cannot wrap once
+		 * addr >= child.  The same offset then applies on the parent side. */
+		if (addr >= child && addr - child < size)
 		{
-			u32 offset = phys_cpu - phys_vc4;
-			*address += offset;
-			KprintfT("[devtree] %s: Virtual address=0x%08lx\n", __func__, *address);
-			return 0;
+			translated = parent + (addr - child);
+			covered = TRUE;
 		}
 	}
-	Kprintf("[devtree] %s: No translation found for address 0x%08lx\n", __func__, address);
-	return -1;
+
+	if (!covered || translated > 0xFFFFFFFFULL)
+	{
+		Kprintf("[devtree] %s: No translation found for address 0x%lx%08lx\n", __func__, (ULONG)(addr >> 32), (ULONG)addr);
+		return NULL;
+	}
+
+	KprintfT("[devtree] %s: Virtual address=0x%08lx\n", __func__, (ULONG)translated);
+	return (APTR)(ULONG)translated;
+}
+
+/* *address is replaced on success (0) and left alone on failure (-1). */
+s32 DT_TranslateAddress(struct ExecBase *SysBase, APTR *address, APTR node)
+{
+	APTR translated = dt_translate(SysBase, node, (ULONG)*address);
+	if (translated == NULL)
+		return -1;
+
+	*address = translated;
+	return 0;
 }
 
 APTR DT_GetBaseAddressVirtual(struct ExecBase *SysBase, CONST_STRPTR alias)
@@ -87,12 +129,18 @@ APTR DT_GetBaseAddressVirtual(struct ExecBase *SysBase, CONST_STRPTR alias)
 		return NULL;
 	}
 
-	const APTR parent = DT_GetParent(key);
-	const u32 address_cells_parent = DT_GetPropertyValueULONG(SysBase, parent, "#address-cells", 2, FALSE);
-	APTR address = (APTR)(ULONG)DT_GetNumber(DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg")), address_cells_parent);
-	DT_TranslateAddress(SysBase, &address, parent);
-	DT_CloseKey(key);
+	/* "reg" starts with the node's address on its parent bus */
+	const APTR bus = DT_GetParent(key);
+	const u32 addr_cells = DT_GetPropertyValueULONG(SysBase, bus, "#address-cells", 2, FALSE);
+	APTR reg = DT_FindProperty(key, (CONST_STRPTR) "reg");
 
+	APTR address = NULL;
+	if (DT_GetPropLen(reg) / sizeof(u32) >= addr_cells)
+		address = dt_translate(SysBase, bus, DT_GetNumber(DT_GetPropValue(reg), addr_cells));
+	else
+		Kprintf("[devtree] %s: %s has no usable reg property\n", __func__, alias);
+
+	DT_CloseKey(key);
 	return address;
 }
 
@@ -146,7 +194,7 @@ APTR DT_FindByPHandle(struct ExecBase *SysBase, APTR key, u32 phandle)
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
 
-	if (p && *(u32 *)DT_GetPropValue(p) == phandle)
+	if (DT_GetPropLen(p) >= sizeof(u32) && *(const u32 *)DT_GetPropValue(p) == phandle)
 	{
 		return key;
 	}
@@ -165,19 +213,21 @@ APTR DT_FindByPHandle(struct ExecBase *SysBase, APTR key, u32 phandle)
 s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	/* Get interrupt information
-	 * We need to find the interrupt-parent's #interrupt-cells to parse the interrupts property correctly.
-	 * We're looking for two interrupts: one for TX/RX events, one for link changes.
-	 */
+
+	/* The interrupt parent is the node named by the nearest "interrupt-parent" at
+	 * or above this one.  Its #interrupt-cells is the length of one entry of
+	 * "interrupts".  The parent is the GIC, whose entry is <type number flags>. */
+	const u32 phandle = DT_GetPropertyValueULONG(SysBase, key, "interrupt-parent", 0, TRUE);
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
-	APTR interrupt_parent = DT_FindByPHandle(SysBase, root, DT_GetPropertyValueULONG(SysBase, root, "interrupt-parent", 0, TRUE));
-	if (interrupt_parent == NULL)
+	APTR interrupt_parent = DT_FindByPHandle(SysBase, root, phandle);
+	DT_CloseKey(root);
+
+	const u32 interrupt_cells = DT_GetPropertyValueULONG(SysBase, interrupt_parent, "#interrupt-cells", 0, FALSE);
+	if (interrupt_parent == NULL || interrupt_cells < 2)
 	{
-		Kprintf("[devtree] %s: Failed to find interrupt-parent\n", __func__);
-		DT_CloseKey(root);
+		Kprintf("[devtree] %s: Failed to find a usable interrupt-parent\n", __func__);
 		return -1;
 	}
-	const u32 interrupt_cells = DT_GetPropertyValueULONG(SysBase, interrupt_parent, "#interrupt-cells", 1, FALSE);
 
 	APTR prop = DT_FindProperty(key, (CONST_STRPTR) "interrupts");
 	if (prop == NULL)
@@ -197,8 +247,8 @@ s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index)
 
 	const u32 *ptr = interrupts + index * interrupt_cells;
 
-	const u32 interrupt_type = (u32)DT_GetNumber(ptr, 1);
-	u32 interrupt_number = (u32)DT_GetNumber(ptr + 1, 1);
+	const u32 interrupt_type = ptr[0];
+	u32 interrupt_number = ptr[1];
 
 	if (interrupt_type == 0)
 		interrupt_number += 32u; // SPI
@@ -206,7 +256,7 @@ s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index)
 		interrupt_number += 16u; // PPI
 
 #ifdef TRACE
-	const u32 interrupt_flags = (u32)DT_GetNumber(ptr + 2, 1);
+	const u32 interrupt_flags = interrupt_cells >= 3 ? ptr[2] : 0;
 	char *trigger;
 	switch (interrupt_flags & 0xf)
 	{
@@ -229,8 +279,6 @@ s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index)
 
 	KprintfT("[devtree] %s: Found interrupt: irq=%lu trigger=%s\n", __func__, (ULONG)interrupt_number, trigger);
 #endif
-
-	DT_CloseKey(root);
 
 	return (s32)interrupt_number;
 }

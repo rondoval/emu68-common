@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 #ifdef __INTELLISENSE__
-#include <clib/exec_protos.h>
 #include <clib/devicetree_protos.h>
 #else
-#define __NOLIBBASE__
-#include <proto/exec.h>
+#define __NOLIBBASE__ /* devicetree.resource is the DeviceTreeBase parameter of every helper */
 #include <proto/devicetree.h>
 #endif
 
@@ -24,27 +22,26 @@ u64 DT_GetNumber(const u32 *ptr, u32 cells)
 	return value;
 }
 
-u32 DT_GetPropertyValueULONG(struct ExecBase *SysBase, APTR key, const char *propname, u32 def_val, BOOL check_parent)
+u32 DT_GetPropertyValueULONG(APTR DeviceTreeBase, APTR key, const char *propname, u32 def_val)
 {
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	u32 ret = def_val;
+	APTR p = DT_FindProperty(key, (CONST_STRPTR)propname);
 
-	while (key != NULL)
-	{
-		APTR p = DT_FindProperty(key, (CONST_STRPTR)propname);
+	return DT_GetPropLen(p) >= sizeof(u32) ? *(const u32 *)DT_GetPropValue(p) : def_val;
+}
 
-		if (p != NULL || check_parent == FALSE)
-		{
-			if (p != NULL && DT_GetPropLen(p) >= 4)
-			{
-				ret = *(u32 *)DT_GetPropValue(p);
-			}
-
-			return ret;
-		}
+/*
+ * dt_find_up - the nearest node, starting at @key and going up, that has the
+ * property; NULL if none has.
+ *
+ * devicetree.resource has DT_FindPropertyRecursive for this walk.  It is not
+ * used until the stack may depend on that call.
+ */
+static APTR dt_find_up(APTR DeviceTreeBase, APTR key, CONST_STRPTR propname)
+{
+	/* The NULL test ends the walk above the root: DT_GetParent(NULL) is the root again */
+	while (key != NULL && DT_FindProperty(key, propname) == NULL)
 		key = DT_GetParent(key);
-	}
-	return ret;
+	return key;
 }
 
 /*
@@ -59,9 +56,8 @@ u32 DT_GetPropertyValueULONG(struct ExecBase *SysBase, APTR key, const char *pro
  * Returns NULL if the bus has no "ranges", no record covers @addr, or the result
  * does not fit a 32-bit pointer.
  */
-static APTR dt_translate(struct ExecBase *SysBase, APTR bus, u64 addr)
+static APTR dt_translate(APTR DeviceTreeBase, APTR bus, u64 addr)
 {
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR prop = DT_FindProperty(bus, (CONST_STRPTR) "ranges");
 	if (prop == NULL)
 	{
@@ -69,9 +65,9 @@ static APTR dt_translate(struct ExecBase *SysBase, APTR bus, u64 addr)
 		return NULL;
 	}
 
-	const u32 child_cells = DT_GetPropertyValueULONG(SysBase, bus, "#address-cells", 2, FALSE);
-	const u32 parent_cells = DT_GetPropertyValueULONG(SysBase, DT_GetParent(bus), "#address-cells", 2, FALSE);
-	const u32 size_cells = DT_GetPropertyValueULONG(SysBase, bus, "#size-cells", 1, FALSE);
+	const u32 child_cells = DT_GetPropertyValueULONG(DeviceTreeBase, bus, "#address-cells", 2);
+	const u32 parent_cells = DT_GetPropertyValueULONG(DeviceTreeBase, DT_GetParent(bus), "#address-cells", 2);
+	const u32 size_cells = DT_GetPropertyValueULONG(DeviceTreeBase, bus, "#size-cells", 1);
 	const u32 record_cells = child_cells + parent_cells + size_cells;
 
 	const u32 *rec = DT_GetPropValue(prop);
@@ -108,68 +104,27 @@ static APTR dt_translate(struct ExecBase *SysBase, APTR bus, u64 addr)
 	return (APTR)(ULONG)translated;
 }
 
-/* *address is replaced on success (0) and left alone on failure (-1). */
-s32 DT_TranslateAddress(struct ExecBase *SysBase, APTR *address, APTR node)
+APTR DT_GetBaseAddressVirtual(APTR DeviceTreeBase, APTR key, u32 index)
 {
-	APTR translated = dt_translate(SysBase, node, (ULONG)*address);
-	if (translated == NULL)
-		return -1;
-
-	*address = translated;
-	return 0;
-}
-
-APTR DT_GetBaseAddressVirtual(struct ExecBase *SysBase, CONST_STRPTR alias)
-{
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	APTR key = DT_OpenKey(alias);
-	if (key == NULL)
-	{
-		Kprintf("[devtree] %s: Failed to open key %s\n", __func__, alias);
-		return NULL;
-	}
-
-	/* "reg" starts with the node's address on its parent bus */
+	/* "reg" lists <address, size> records in the cells of the node's parent bus */
 	const APTR bus = DT_GetParent(key);
-	const u32 addr_cells = DT_GetPropertyValueULONG(SysBase, bus, "#address-cells", 2, FALSE);
+	const u32 addr_cells = DT_GetPropertyValueULONG(DeviceTreeBase, bus, "#address-cells", 2);
+	const u32 size_cells = DT_GetPropertyValueULONG(DeviceTreeBase, bus, "#size-cells", 1);
+	const u32 record_cells = addr_cells + size_cells;
+
 	APTR reg = DT_FindProperty(key, (CONST_STRPTR) "reg");
-
-	APTR address = NULL;
-	if (DT_GetPropLen(reg) / sizeof(u32) >= addr_cells)
-		address = dt_translate(SysBase, bus, DT_GetNumber(DT_GetPropValue(reg), addr_cells));
-	else
-		Kprintf("[devtree] %s: %s has no usable reg property\n", __func__, alias);
-
-	DT_CloseKey(key);
-	return address;
-}
-
-APTR DT_GetBaseAddress(struct ExecBase *SysBase, CONST_STRPTR alias)
-{
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-	APTR key = DT_OpenKey(alias);
-	if (key == NULL)
+	if (addr_cells == 0 || DT_GetPropLen(reg) / sizeof(u32) < (index + 1) * record_cells)
 	{
-		Kprintf("[devtree] %s: Failed to open key %s\n", __func__, alias);
+		Kprintf("[devtree] %s: %s has no reg record %ld\n", __func__, DT_GetKeyName(key), index);
 		return NULL;
 	}
 
-	u32 address_cells = DT_GetPropertyValueULONG(SysBase, DT_GetParent(key), "#address-cells", 2, FALSE);
-
-	const u32 *reg = DT_GetPropValue(DT_FindProperty(key, (CONST_STRPTR) "reg"));
-	if (reg != NULL)
-	{
-		DT_CloseKey(key);
-		return (APTR)reg[address_cells - 1];
-	}
-	Kprintf("[devtree] %s: Failed to find reg property in key %s\n", __func__, alias);
-	DT_CloseKey(key);
-	return NULL;
+	const u32 *rec = (const u32 *)DT_GetPropValue(reg) + index * record_cells;
+	return dt_translate(DeviceTreeBase, bus, DT_GetNumber(rec, addr_cells));
 }
 
-CONST_STRPTR DT_GetAlias(struct ExecBase *SysBase, CONST_STRPTR alias)
+CONST_STRPTR DT_GetAlias(APTR DeviceTreeBase, CONST_STRPTR alias)
 {
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	APTR key = DT_OpenKey((CONST_STRPTR) "/aliases");
 	if (key == NULL)
 	{
@@ -177,52 +132,45 @@ CONST_STRPTR DT_GetAlias(struct ExecBase *SysBase, CONST_STRPTR alias)
 		return NULL;
 	}
 
-	APTR prop = DT_FindProperty(key, (CONST_STRPTR)alias);
-	if (prop != NULL)
-	{
-		CONST_STRPTR value = DT_GetPropValue(prop);
-		DT_CloseKey(key);
-		return value;
-	}
-	Kprintf("[devtree] %s: Failed to find alias %s\n", __func__, alias);
+	CONST_STRPTR value = DT_GetPropValue(DT_FindProperty(key, alias));
 	DT_CloseKey(key);
-	return NULL;
+
+	if (value == NULL)
+		Kprintf("[devtree] %s: Failed to find alias %s\n", __func__, alias);
+	return value;
 }
 
-APTR DT_FindByPHandle(struct ExecBase *SysBase, APTR key, u32 phandle)
+APTR DT_FindByPHandle(APTR DeviceTreeBase, APTR key, u32 phandle)
 {
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
+	if (key == NULL) /* DT_GetChild(NULL) would start at the root's children */
+		return NULL;
+
 	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
-
 	if (DT_GetPropLen(p) >= sizeof(u32) && *(const u32 *)DT_GetPropValue(p) == phandle)
-	{
 		return key;
-	}
-	else
+
+	for (APTR c = DT_GetChild(key, NULL); c; c = DT_GetChild(key, c))
 	{
-		for (APTR c = DT_GetChild(key, NULL); c; c = DT_GetChild(key, c))
-		{
-			APTR found = DT_FindByPHandle(SysBase, c, phandle);
-			if (found)
-				return found;
-		}
+		APTR found = DT_FindByPHandle(DeviceTreeBase, c, phandle);
+		if (found)
+			return found;
 	}
 	return NULL;
 }
 
-s32 DT_GetInterrupt(struct ExecBase *SysBase, APTR key, u32 index)
+s32 DT_GetInterrupt(APTR DeviceTreeBase, APTR key, u32 index)
 {
-	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
-
 	/* The interrupt parent is the node named by the nearest "interrupt-parent" at
 	 * or above this one.  Its #interrupt-cells is the length of one entry of
 	 * "interrupts".  The parent is the GIC, whose entry is <type number flags>. */
-	const u32 phandle = DT_GetPropertyValueULONG(SysBase, key, "interrupt-parent", 0, TRUE);
+	APTR named_at = dt_find_up(DeviceTreeBase, key, (CONST_STRPTR) "interrupt-parent");
+	const u32 phandle = DT_GetPropertyValueULONG(DeviceTreeBase, named_at, "interrupt-parent", 0);
+
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
-	APTR interrupt_parent = DT_FindByPHandle(SysBase, root, phandle);
+	APTR interrupt_parent = DT_FindByPHandle(DeviceTreeBase, root, phandle);
+	const u32 interrupt_cells = DT_GetPropertyValueULONG(DeviceTreeBase, interrupt_parent, "#interrupt-cells", 0);
 	DT_CloseKey(root);
 
-	const u32 interrupt_cells = DT_GetPropertyValueULONG(SysBase, interrupt_parent, "#interrupt-cells", 0, FALSE);
 	if (interrupt_parent == NULL || interrupt_cells < 2)
 	{
 		Kprintf("[devtree] %s: Failed to find a usable interrupt-parent\n", __func__);

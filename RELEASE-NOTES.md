@@ -20,12 +20,21 @@ once, so later calls on that context need no new argument:
 | `reset_guard_install(rg, SysBase, prepare, user, name)` | `rg`, for the reset handlers and `reset_guard_remove` |
 | `drv_timer_open(t, SysBase)` | `t`, for the other `drv_timer_*` calls |
 | `drv_task_spawn(SysBase, ...)`, `drv_task_join(SysBase, ...)`, `drv_task_exit(SysBase, ...)`, `drv_unit_msgport_init(SysBase, unit)` | — (argument) |
-| `DT_FindByPHandle`, `DT_GetAlias`, `DT_GetBaseAddress`, `DT_GetBaseAddressVirtual`, `DT_GetPropertyValueULONG`, `DT_TranslateAddress`, `DT_GetInterrupt`: `SysBase` first | — (argument) |
 | `emu68_probe_dcache_range_ops(SysBase)`, `emu68_has_dcache_range_ops(SysBase)` | — (argument) |
 
 `memory.h` and `debug.h` no longer fall back to `$4` when the includer has not
 bound `EXEC_BASE_NAME`: an Exec call without a `SysBase` in scope is now a
 compile error rather than a silent bus read.
+
+### Device-tree helpers take the resource base (`devtree.h`)
+
+The helpers no longer open `devicetree.resource` themselves. The caller opens it
+once and passes it as the first argument, e.g. `DT_GetAlias(DeviceTreeBase, alias)`.
+
+- `DT_GetBaseAddressVirtual(DeviceTreeBase, key, index)` takes the node's open key
+  and the index of the `reg` record, instead of a path.
+- `DT_GetPropertyValueULONG()` loses its `check_parent` argument.
+- `DT_TranslateAddress()` and `DT_GetBaseAddress()` are removed.
 
 ### Debug output no longer uses debug.lib
 
@@ -166,6 +175,11 @@ degrades to a warning where binutils was built without plugin support.
   in fast RAM uses it instead of reading `$4` (an Amiga-bus cycle on PiStorm,
   ~1.5 µs) per call. Call sites are unchanged; only taking their address stops
   working, and no in-tree consumer does.
+- **Device-tree address translation is done in 64 bits.** A `ranges` record above
+  4 GiB was cut to 32 bits and could match the wrong address. A missing `reg`, or
+  an address no record covers, now gives NULL instead of an untranslated address.
+- **`DT_GetInterrupt()` uses the node's own interrupt parent** (the nearest
+  `interrupt-parent` at or above it) instead of the root's.
 
 ---
 

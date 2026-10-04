@@ -74,24 +74,23 @@ void dma_mem_init(struct dma_mem_ctx *ctx, struct ExecBase *SysBase)
 		return;
 	}
 
-	/* A property and its value stay valid after the key is closed */
+	/* The value stays valid after the key is closed */
 	APTR mem_prop = DT_FindProperty(memory, (CONST_STRPTR) "reg");
+	const u32 *reg = DT_GetPropValue(mem_prop);
+	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(ULONG);
 	DT_CloseKey(memory);
-	if (mem_prop == NULL)
+	if (reg == NULL)
 	{
 		Kprintf("[dma_mem] no /memory reg property; no DMA regions\n");
 		return;
 	}
 
-	const u32 *reg = DT_GetPropValue(mem_prop); /* DT cells are 32-bit; matches DT_GetNumber's param on any NDK */
-	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(ULONG);
-
 	/* DT spec defaults (and the convention used throughout this stack): 2 address
 	 * cells, 1 size cell.  The root /memory layout is read with DT_GetNumber so
 	 * multi-cell values are assembled (not truncated) before the 2GB filter. */
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
-	ULONG addr_cells = DT_GetPropertyValueULONG(SysBase, root, "#address-cells", 2, FALSE);
-	ULONG size_cells = DT_GetPropertyValueULONG(SysBase, root, "#size-cells", 1, FALSE);
+	ULONG addr_cells = DT_GetPropertyValueULONG(DeviceTreeBase, root, "#address-cells", 2);
+	ULONG size_cells = DT_GetPropertyValueULONG(DeviceTreeBase, root, "#size-cells", 1);
 	DT_CloseKey(root);
 
 	/* Parse the raw /memory window(s): the Pi-DRAM physical extent.  These are used

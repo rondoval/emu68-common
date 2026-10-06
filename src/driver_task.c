@@ -11,7 +11,6 @@
 #include <clib/timer_protos.h>
 #else
 #define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #include <proto/timer.h>
 #endif
@@ -27,7 +26,7 @@
 #include <minlist.h>
 #include <debug.h>
 
-s32 drv_task_spawn(APTR ctx, APTR entry, const char *name,
+s32 drv_task_spawn(struct ExecBase *SysBase, APTR ctx, APTR entry, const char *name,
                    ULONG stackBytes, BYTE pri)
 {
     KprintfT("[drv] %s: starting %s\n", __func__, name);
@@ -98,7 +97,7 @@ s32 drv_task_spawn(APTR ctx, APTR entry, const char *name,
     return 0;
 }
 
-void drv_task_join(struct Task **slot)
+void drv_task_join(struct ExecBase *SysBase, struct Task **slot)
 {
     if (slot == NULL || *slot == NULL)
         return;
@@ -108,7 +107,7 @@ void drv_task_join(struct Task **slot)
     /* The task clears *slot on its way out, so the join is a poll. A timer paces
      * it; without one the poll still terminates, just hot. */
     struct drv_timer pacer;
-    BOOL haveTimer = drv_timer_open(&pacer);
+    BOOL haveTimer = drv_timer_open(&pacer, SysBase);
 
     Signal(*slot, SIGBREAKF_CTRL_C);
     while (*slot != NULL)
@@ -124,7 +123,7 @@ void drv_task_join(struct Task **slot)
     KprintfT("[drv] %s: task stopped\n", __func__);
 }
 
-BYTE drv_unit_msgport_init(struct Unit *unit)
+BYTE drv_unit_msgport_init(struct ExecBase *SysBase, struct Unit *unit)
 {
     _NewMinList((struct MinList *)&unit->unit_MsgPort.mp_MsgList);
     unit->unit_MsgPort.mp_SigTask = FindTask(NULL);
@@ -139,7 +138,7 @@ BYTE drv_unit_msgport_init(struct Unit *unit)
     return sigbit;
 }
 
-void drv_task_exit(struct Task **slot, struct Task *parent, BOOL ranLoop)
+void drv_task_exit(struct ExecBase *SysBase, struct Task **slot, struct Task *parent, BOOL ranLoop)
 {
     *slot = NULL;
     Signal(parent, ranLoop ? SIGBREAKF_CTRL_F : SIGBREAKF_CTRL_C);

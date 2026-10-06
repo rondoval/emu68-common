@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 1.9.1 LANGUAGES C ASM)
+project(common VERSION 2.0.0 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
+if(EMU68_BUILD_STAMP)   # local-build marker from the stack's build.sh; empty in releases
+    string(APPEND CURRENT_DATE " ${EMU68_BUILD_STAMP}")
+endif()
 
 # Dependencies
 find_package(devicetree CONFIG REQUIRED)
 
 # Debug sink + tier selection (shared by the whole stack).
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonLto.cmake)
 emu68_debug_definitions()
 
 # Set default install prefix to ./install subdirectory
@@ -23,10 +27,17 @@ add_library(common STATIC ${common_sources})
 
 # Freestanding C runtime memory primitives (memset/memcpy/memmove/memcmp) that
 # GCC may synthesise at -O3.  Compile their definitions with the loop-idiom and
-# builtin recognition disabled so the compiler does not rewrite, e.g., memcpy()'s
-# own copy loop into a call to memcpy() (infinite recursion).
+# builtin recognition disabled so the compiler does not rewrite, e.g., memmove()'s
+# own copy loop into a call to memmove() (infinite recursion).
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c PROPERTIES
 	COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns;-fno-builtin")
+
+emu68_enable_lto(common)
+# memory.c stays a real object. GCC synthesises memmove/memcmp calls during ltrans
+# codegen, after the IR phase has ended.  ld satisfies such a late reference out of
+# libcommon.a only when the member is a real object; an IR member can no longer be
+# compiled by then and the link ends in `undefined reference to memcmp'.
+emu68_lto_keep_real_objects(common ${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c)
 
 # CPU/FPU/frame-pointer flags come from the stack toolchain (cmake/toolchain.cmake,
 # knobs M68K_CPU / M68K_FPU) and must not be repeated here: a hardcoded -m68040 is
@@ -92,10 +103,21 @@ write_basic_package_version_file(
 install(FILES
 	${CMAKE_CURRENT_BINARY_DIR}/Emu68CommonConfig.cmake
 	${CMAKE_CURRENT_BINARY_DIR}/Emu68CommonConfigVersion.cmake
-	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheck.cmake
-	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonRomCheckScript.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonIsrCheck.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonModuleLayout.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonLayoutCheckScript.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonLto.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
-	${CMAKE_CURRENT_SOURCE_DIR}/cmake/emu68_debug_serial_glue.c
 	DESTINATION lib/cmake/Emu68Common
+)
+
+# emu68_isr_z_check() resolves its helper relative to the cmake module dir
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/scripts/isr-z-check.py
+	DESTINATION lib/cmake/scripts
+)
+
+# emu68_module_layout() resolves the layout script the same way
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/ldscripts/module.lds
+	DESTINATION lib/cmake/ldscripts
 )

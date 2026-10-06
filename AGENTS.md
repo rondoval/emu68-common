@@ -41,12 +41,11 @@ macros gate the printers — which is what keeps `perf.c`'s reporter linkable
 from a higher-tier consumer.
 
 The module exports the functions every debug-emitting component calls
-instead of hardcoding `-DDEBUG`/`emu68_rom_check`: `emu68_debug_definitions()`
-(sets `DEBUG_SINK`/`DEBUG_SERIAL` + tier macros), `emu68_tier_at_least(<out>
+instead of hardcoding `-DDEBUG`: `emu68_debug_definitions()` (sets
+`DEBUG_SINK`/`DEBUG_SERIAL` + tier macros) and `emu68_tier_at_least(<out>
 <rung>)` (wires third-party log switches, e.g. nvme.device's mounter
-submodule), and `emu68_debug_backend_finalize(<tgt> [ROMABLE])` (serial: link
-`-ldebug` + the weak `__divsi3` glue; else: run the ROM check for `ROMABLE`
-targets).
+submodule).  ROM-ability is not part of this module: it is an `ASSERT` in
+`ldscripts/module.lds`, applied by `emu68_module_layout()`.
 
 Note: `debug.h` includes `<proto/exec.h>` only under `DEBUG_SINK`; sources
 that call exec functions must include it themselves (the `#define
@@ -61,7 +60,7 @@ __NOLIBBASE__` / `EXEC_BASE_NAME (*(struct ExecBase**)4UL)` idiom).
 | `dma_mem.h` | DMA-memory facility: `dma_mem_init` / `dma_addr_reachable` (bounce-buffer predicate) and a region-restricted `dma_pool` (`dma_pool_create`/`dma_alloc`/`dma_zalloc`/`dma_free`) that always allocates from DMA-reachable Emu68 RAM |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init`/alloc/free), optionally backed by a `dma_mem` pool for DMA-reachable objects |
 | `memory.h` | Exec pool helpers (`pool_alloc`/`pool_zalloc`/`pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree (implemented in `memory.c`; `memset` is asm-optimised, `memcpy`/`memmove` route through Exec `CopyMem`) |
-| `perf.h` | Instance-based per-stage timing (`PERF_T0`/`PERF_ADD` probes, `perf_report()` delta lines); embed the counters in the caller's context (ROM-able, no globals); compiles out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py` |
+| `perf.h` | Instance-based per-stage timing (`PERF_T0`/`PERF_ADD` probes, `perf_report()` delta lines) and value histograms (`struct perf_hist`, `PERF_HIST_ADD`/`perf_hist_report()`); embed the counters in the caller's context (ROM-able, no globals); probes compile out below the `PROFILE` tier while the storage stays. Reduce captures with `scripts/perf-report.py` — it parses the timing grammar only and ignores the `hist` lines |
 | `reset_guard.h` | `reset_guard_install`/`reset_guard_remove` — run a driver "prepare for reset" callback before the Amiga resets (Ctrl-A-A warning and `ColdReboot()`) |
 | `iomem.h` | Volatile little-endian MMIO accessors (`mmio_read/write{8,16,32}`, `mmio_update/clear/set{16,32}`) |
 | `devtree.h` | Thin wrappers around `devicetree.resource` API |

@@ -7,10 +7,14 @@
 # Sink - EMU68_DEBUG_BACKEND.  A stack-wide property (one libcommon.a is shared
 # by every component), so it is set once at the top-level build:
 #
-#   pistorm (default) - RawDoFmt -> magic 0xdeadbeef trap (Emu68/PiStorm). ROM-able.
-#   serial            - debug.lib KPrintF -> console (serial @ 9600). Links libdebug.a,
-#                       which carries a 4-byte writable _SysBase, so NOT ROM-able.
+#   pistorm (default) - magic 0xdeadbeef trap (Emu68/PiStorm).
+#   serial            - Exec RawPutChar, the kprintf path: the serial port, or
+#                       whatever redirects it (Sashimi and the like).
 #   off               - no sink at all; every tier below is forced silent.
+#
+# Both sinks format with emu68-common's fmt_vformat (no Exec call) and are
+# ROM-able; nothing extra is linked for either.  The serial sink reads SysBase
+# from address 4 (debug printing has no context to carry it).
 #
 # Tier - EMU68_TIER, resolved per component by the top-level build.  A cumulative
 # ladder: each rung defines its own macro plus every rung beneath it.
@@ -45,12 +49,6 @@ if(NOT EMU68_TIER IN_LIST EMU68_TIER_LADDER)
     message(FATAL_ERROR
         "EMU68_TIER must be one of: ${EMU68_TIER_LADDER} (got '${EMU68_TIER}')")
 endif()
-
-# Weak __divsi3 helper that debug.lib's single-object kdebug.o drags in via KGetNum
-# (which we never call).  Defined weak so libc's strong copy wins for hosted
-# programs, while it is the sole definition for freestanding (-nostdlib) targets.
-set(_EMU68_DEBUG_SERIAL_GLUE "${CMAKE_CURRENT_LIST_DIR}/emu68_debug_serial_glue.c"
-    CACHE INTERNAL "emu68 serial-debug __divsi3 glue source")
 
 # emu68_tier_at_least(<out> <rung>)
 # Set <out> to TRUE when this component's tier reaches <rung>.  Always FALSE when
@@ -94,23 +92,3 @@ macro(emu68_debug_definitions)
         endif()
     endif()
 endmacro()
-
-# emu68_debug_backend_finalize(<target> [ROMABLE])
-# Finalize a linked target for the selected backend.
-#   serial : link libdebug.a (KPutChar) and add the weak __divsi3 glue it needs.
-#            The ROM check is skipped (libdebug.a carries a writable _SysBase).
-#   else   : run the ROM check for ROMABLE targets.
-# ROMABLE marks the freestanding .device/.library binaries that must stay ROM-able;
-# it gates only the ROM check.  (The glue is added regardless, as a harmless weak
-# symbol -- hosted programs override it with libc's.)
-function(emu68_debug_backend_finalize target)
-    cmake_parse_arguments(ARG "ROMABLE" "" "" ${ARGN})
-    if(EMU68_DEBUG_BACKEND STREQUAL "serial")
-        # -ldebug (libdebug.a); the bare name "debug" is a reserved
-        # target_link_libraries keyword, so pass it as a link flag.
-        target_link_libraries(${target} PRIVATE -ldebug)
-        target_sources(${target} PRIVATE ${_EMU68_DEBUG_SERIAL_GLUE})
-    elseif(ARG_ROMABLE AND COMMAND emu68_rom_check)
-        emu68_rom_check(${target})
-    endif()
-endfunction()

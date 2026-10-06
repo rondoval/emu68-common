@@ -20,6 +20,39 @@ LONG _Stricmp(CONST_STRPTR s1, CONST_STRPTR s2)
 	return 0;
 }
 
+int strcmp(const char *s1, const char *s2)
+{
+	UBYTE c1;
+	UBYTE c2;
+
+	do
+	{
+		c1 = (UBYTE)*s1++;
+		c2 = (UBYTE)*s2++;
+		if (c1 != c2)
+			return (int)c1 - (int)c2;
+	} while (c1 != 0);
+
+	return 0;
+}
+
+int atoi(const char *s)
+{
+	int sign = 1;
+	int value = 0;
+
+	while (*s == ' ' || (*s >= '\t' && *s <= '\r'))
+		s++;
+
+	if (*s == '-' || *s == '+')
+		sign = (*s++ == '-') ? -1 : 1;
+
+	while (*s >= '0' && *s <= '9')
+		value = value * 10 + (*s++ - '0');
+
+	return sign * value;
+}
+
 int strncmp(const char *s1, const char *s2, __SIZE_TYPE__ n)
 {
 	while (n-- > 0)
@@ -40,6 +73,14 @@ __SIZE_TYPE__ strlen(const char *s)
 	while (*p != '\0')
 		p++;
 	return (__SIZE_TYPE__)(p - s);
+}
+
+char *strcpy(char *dst, const char *src)
+{
+	char *d = dst;
+	while ((*d++ = *src++) != '\0')
+		;
+	return dst;
 }
 
 __SIZE_TYPE__ strlcpy(char *dst, const char *src, __SIZE_TYPE__ size)

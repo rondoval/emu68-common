@@ -48,6 +48,7 @@ typedef void (*reset_guard_prepare_t)(APTR user);
 struct reset_guard
 {
     /* All fields are private to reset_guard.c. */
+    struct ExecBase *rg_SysBase;   /* the installer's; every path, incl. ColdReboot, uses it */
     reset_guard_prepare_t rg_Prepare;
     APTR rg_User;
     CONST_STRPTR rg_Name;
@@ -62,7 +63,7 @@ struct reset_guard
     BOOL rg_DeviceOpen;
 };
 
-BOOL reset_guard_install(struct reset_guard *rg, reset_guard_prepare_t prepare,
+BOOL reset_guard_install(struct reset_guard *rg, struct ExecBase *SysBase, reset_guard_prepare_t prepare,
                          APTR user, CONST_STRPTR name);
 BOOL reset_guard_remove(struct reset_guard *rg);
 

@@ -21,8 +21,9 @@
  * capability from builds that never emit the opcode.  The raw probe carries
  * no such restriction.
  *
- * Callers must include <proto/exec.h> (their own __NOLIBBASE__ convention)
- * BEFORE this header — OpenResource().
+ * Both take the caller's SysBase.  The parameter is named SysBase so the
+ * probe's OpenResource() binds to it through the stack-wide EXEC_BASE_NAME
+ * convention (SysBase, NDK default or explicit).
  */
 #ifndef _EMU68_FEATURES_H
 #define _EMU68_FEATURES_H
@@ -34,6 +35,7 @@
 #endif
 
 #include <exec/types.h>
+#include <proto/exec.h>
 
 typedef enum emu68_probe_result
 {
@@ -42,7 +44,7 @@ typedef enum emu68_probe_result
 	EMU68_PROBE_PRESENT = 1,        /* /emu68 "dcache-range-ops" revision 1 */
 } emu68_probe_result;
 
-static inline emu68_probe_result emu68_probe_dcache_range_ops(void)
+static inline emu68_probe_result emu68_probe_dcache_range_ops(struct ExecBase *SysBase)
 {
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
 	if (DeviceTreeBase == NULL)
@@ -65,12 +67,13 @@ static inline emu68_probe_result emu68_probe_dcache_range_ops(void)
 	return res;
 }
 
-static inline BOOL emu68_has_dcache_range_ops(void)
+static inline BOOL emu68_has_dcache_range_ops(struct ExecBase *SysBase)
 {
 #ifdef EMU68_FORCE_LVO_CACHE_OPS
+	(void)SysBase;
 	return TRUE; /* the LVO flavor never emits the opcode */
 #else
-	return emu68_probe_dcache_range_ops() == EMU68_PROBE_PRESENT;
+	return emu68_probe_dcache_range_ops(SysBase) == EMU68_PROBE_PRESENT;
 #endif
 }
 

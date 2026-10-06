@@ -8,11 +8,8 @@
  */
 #ifdef __INTELLISENSE__
 #include <clib/exec_protos.h>
-extern struct ExecBase *SysBase;
-#define EXEC_BASE_NAME SysBase
 #else
 #define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #endif
 
@@ -34,6 +31,7 @@ extern struct ExecBase *SysBase;
 
 static void reset_guard_run_prepare(struct reset_guard *rg)
 {
+	struct ExecBase *SysBase = rg->rg_SysBase;
 	Disable();
 	UBYTE already = rg->rg_Prepared;
 	rg->rg_Prepared = 1;
@@ -50,7 +48,7 @@ static void reset_guard_coldreboot_entry(struct reset_guard *rg asm("a1"))
 	reset_guard_run_prepare(rg);
 
 	APTR fn = rg->rg_OldColdReboot;
-	struct ExecBase *sb = EXEC_BASE_NAME;
+	struct ExecBase *sb = rg->rg_SysBase;
 	asm volatile("move.l %0,%%a0\n\t"
 	             "move.l %1,%%a6\n\t"
 	             "jmp (%%a0)"
@@ -64,6 +62,7 @@ static void reset_guard_coldreboot_entry(struct reset_guard *rg asm("a1"))
  * contract, and DONE is a SendIO whose reply lands on the PA_IGNORE port. */
 static void reset_guard_kbd_handler(struct reset_guard *rg asm("a1"))
 {
+	struct ExecBase *SysBase = rg->rg_SysBase;
 	reset_guard_run_prepare(rg);
 	SendIO((struct IORequest *)&rg->rg_DoneIO);
 }
@@ -73,6 +72,7 @@ static void reset_guard_kbd_handler(struct reset_guard *rg asm("a1"))
  * only; both commands are documented to complete immediately. */
 static BYTE reset_guard_do_command(struct reset_guard *rg, UWORD command)
 {
+	struct ExecBase *SysBase = rg->rg_SysBase;
 	struct IOStdReq *io = &rg->rg_AddIO;
 
 	io->io_Command = command;
@@ -91,16 +91,17 @@ static BYTE reset_guard_do_command(struct reset_guard *rg, UWORD command)
 	return io->io_Error;
 }
 
-static APTR lvo_target(LONG lvo)
+static APTR lvo_target(struct ExecBase *SysBase, LONG lvo)
 {
 	/* LVO entries are JMP abs.l: 0x4EF9 opcode word + 32-bit address. */
-	return *(APTR *)((UBYTE *)EXEC_BASE_NAME + lvo + 2);
+	return *(APTR *)((UBYTE *)SysBase + lvo + 2);
 }
 
-BOOL reset_guard_install(struct reset_guard *rg, reset_guard_prepare_t prepare,
+BOOL reset_guard_install(struct reset_guard *rg, struct ExecBase *SysBase, reset_guard_prepare_t prepare,
                          APTR user, CONST_STRPTR name)
 {
 	memset(rg, 0, sizeof(*rg));
+	rg->rg_SysBase = SysBase;
 	rg->rg_Prepare = prepare;
 	rg->rg_User = user;
 	rg->rg_Name = name;
@@ -169,7 +170,7 @@ BOOL reset_guard_install(struct reset_guard *rg, reset_guard_prepare_t prepare,
 	rg->rg_Trampoline = t;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
-	rg->rg_OldColdReboot = (APTR)SetFunction((struct Library *)EXEC_BASE_NAME,
+	rg->rg_OldColdReboot = (APTR)SetFunction((struct Library *)SysBase,
 	                                         LVO_COLDREBOOT, (ULONG (*)())t);
 #pragma GCC diagnostic pop
 
@@ -181,17 +182,18 @@ BOOL reset_guard_remove(struct reset_guard *rg)
 {
 	if (!rg->rg_DeviceOpen)
 		return TRUE;
+	struct ExecBase *SysBase = rg->rg_SysBase;
 
 	if (rg->rg_Trampoline)
 	{
 		/* If something patched ColdReboot after us, the chain runs
 		 * through our trampoline and must stay resident. */
-		if (lvo_target(LVO_COLDREBOOT) != (APTR)rg->rg_Trampoline)
+		if (lvo_target(SysBase, LVO_COLDREBOOT) != (APTR)rg->rg_Trampoline)
 			return FALSE;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
-		SetFunction((struct Library *)EXEC_BASE_NAME, LVO_COLDREBOOT,
+		SetFunction((struct Library *)SysBase, LVO_COLDREBOOT,
 		            (ULONG (*)())rg->rg_OldColdReboot);
 #pragma GCC diagnostic pop
 		FreeMem(rg->rg_Trampoline, TRAMP_BYTES);

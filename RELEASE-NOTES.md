@@ -1,3 +1,188 @@
+# Release notes — emu68-common 2.0.0
+
+Changes since 1.9.1.
+
+---
+
+## Breaking changes
+
+### Helpers that call Exec take the caller's `SysBase`
+
+Nothing in emu68-common reads the Exec base from address 4 any more (on PiStorm
+that read is an Amiga-bus cycle, ~1.5 µs). Every helper that calls Exec now gets
+the base from its caller. Where a context struct exists the base is stored in it
+once, so later calls on that context need no new argument:
+
+| Changed signature | Stores the base in |
+|---|---|
+| `dma_mem_init(ctx, SysBase)` | `ctx`; `dma_pool_create()` copies it into the pool, which covers `dma_alloc`/`dma_zalloc`/`dma_free` |
+| `slab_cache_init(cache, SysBase, meta_pool, dma_pool, ...)` | `cache`, for `slab_grow`/`slab_alloc`/`slab_cache_destroy` |
+| `reset_guard_install(rg, SysBase, prepare, user, name)` | `rg`, for the reset handlers and `reset_guard_remove` |
+| `drv_timer_open(t, SysBase)` | `t`, for the other `drv_timer_*` calls |
+| `drv_task_spawn(SysBase, ...)`, `drv_task_join(SysBase, ...)`, `drv_task_exit(SysBase, ...)`, `drv_unit_msgport_init(SysBase, unit)` | — (argument) |
+| `emu68_probe_dcache_range_ops(SysBase)`, `emu68_has_dcache_range_ops(SysBase)` | — (argument) |
+
+`memory.h` and `debug.h` no longer fall back to `$4` when the includer has not
+bound `EXEC_BASE_NAME`: an Exec call without a `SysBase` in scope is now a
+compile error rather than a silent bus read.
+
+### Device-tree helpers take the resource base (`devtree.h`)
+
+The helpers no longer open `devicetree.resource` themselves. The caller opens it
+once and passes it as the first argument, e.g. `DT_GetAlias(DeviceTreeBase, alias)`.
+
+- `DT_GetBaseAddressVirtual(DeviceTreeBase, key, index)` takes the node's open key
+  and the index of the `reg` record, instead of a path.
+- `DT_GetPropertyValueULONG()` loses its `check_parent` argument.
+- `DT_TranslateAddress()` and `DT_GetBaseAddress()` are removed.
+
+### Debug output no longer uses debug.lib
+
+`Kprintf` and friends format with emu68-common's own formatter (below) instead
+of `RawDoFmt`, so the pistorm backend makes no Exec call at all. The serial
+backend calls Exec's `RawPutChar` itself instead of linking debug.lib — output
+still goes wherever `kprintf` output goes, so Sashimi and the like keep working:
+`-ldebug` and the `__divsi3` glue (`cmake/emu68_debug_serial_glue.c`) are gone,
+and serial builds now pass the ROM check like the others. `debug.h`'s byte sink is renamed
+`putch` → `debug_putch`, for the few callers that feed it to a formatter
+themselves.
+
+### Formatting follows C's argument rules; `_SNPrintf` returns C's value
+
+Debug output and `_SNPrintf`/`_VSNPrintf` no longer follow `RawDoFmt`'s rule
+that an argument is 16-bit unless the directive says `l`: every argument is one
+32-bit cell, so a bare `%d`, `%u` or `%x` now reads the same value as `%ld`/`%lu`/`%lx`.
+`%p` is new (8 hex digits); `%b` (BCPL string) is gone.
+
+`_SNPrintf`/`_VSNPrintf` now return what C's `snprintf` returns: the length of
+the whole string without the terminating NUL (it used to count the NUL). No
+in-tree caller uses the value.
+
+---
+
+## New features (new APIs / build)
+
+### One printf engine, without Exec (`format.h`)
+
+The stack's formatter, used by the debug printers, `_SNPrintf`/`_VSNPrintf`, and
+lwip-amiga's log, diag and `vsyslog` output (which had a copy of its own):
+`%[-][0][width][.prec][h|l|z]{d i u x X c s p %}` with C argument rules, no Exec
+call and no writable data — interrupt-safe, ROM-safe, no `SysBase` needed.
+
+- `fmt_vformat(putch, out, fmt, va_list)` and `fmt_aformat(putch, out, fmt,
+  const ULONG *args)` stream the result to a callback, taking arguments from a
+  `va_list` or from an array of 32-bit cells (the AmigaOS `vsyslog`/`VPrintf`
+  convention).
+- `_SNPrintfArgs(buf, size, fmt, args)` is the array counterpart of `_SNPrintf`.
+
+### `memcpy` and `memset`: one asm routine each, callable from interrupts
+
+`memcpy` (was a `CopyMem` wrapper) and `memset` (was C size buckets) are now
+one asm routine each, shaped for the Emu68 JIT: a longword loop below 64
+bytes, `movem.l` blocks from there, any alignment (68020+). Both are roughly
+twice as fast on small sizes and faster than `CopyMem` at every size, e.g.
+`memcpy` 8 B 142 → 67 ns, 1448 B 353 → 229 ns.
+
+They make no Exec call and own no writable data, so `memcpy`, `memset` and
+`memmove` (which forwards to `memcpy` when the regions don't overlap) are
+interrupt-callable and ROM-safe. Consumers pick this up without a source change.
+
+### `strcmp`, `atoi`, `strcpy`
+
+Alongside `strlen`/`strncmp`/`strlcpy`, so a `-nostdlib` module needs no libc for
+them.
+
+### `iomem.h`: relaxed MMIO accessors
+
+`mmio_read32_relaxed` / `mmio_write32_relaxed` are the plain volatile access
+without the trailing `emu68_barrier()`. MMIO accesses stay in program order
+among themselves but are not ordered against normal memory, so the caller
+closes a batch of them with one explicit `emu68_barrier()` wherever that
+ordering matters, paying one barrier instead of one per access.
+
+### `perf.h`: value histograms beside the timing slots (`perf_hist`)
+
+A `struct perf` slot answers "how long did this stage take" with a count, a sum
+and a maximum. Some questions need the shape of the values instead — how many
+frames one interrupt finds waiting, how far apart two interrupts are — and there
+an average hides precisely the tail that matters.
+
+`struct perf_hist` is a fixed-bucket distribution of a `u32` value, with the
+same ownership rules as `struct perf`: the ascending bounds array, the name and
+the report prefix are rodata, the buckets live in the caller's context. No
+writable globals, so it stays usable from a ROM-able driver.
+
+- `PERF_HIST_ADD(ph, value)` — one bucket increment; compiles out below the
+  `PROFILE` tier, exactly like `PERF_ADD`.
+- `perf_hist_report(ph)` — prints one line and rezeroes, to be called from the
+  component's periodic reporting context beside `perf_report()`. Lives in
+  `perf.c` under `DEBUG_SINK`, so, like `perf_report()`, a `PROFILE`-tier
+  consumer can call it even when emu68-common itself is built at a lower tier.
+
+The bucket storage is declared at every tier, so a `struct perf_hist` member
+costs the same context bytes whatever the build is set to and nothing else in
+the surrounding struct moves when the tier changes.
+
+The report line deliberately does *not* follow `perf_report()`'s grammar:
+
+```
+[<prefix>] hist <name>: n=<samples> <=<bound>:<count> ... ><last bound>:<count>
+```
+
+Empty buckets are omitted, and a histogram with no samples prints nothing.
+`scripts/perf-report.py` only matches the `<name>: n=… sum=…us` slot grammar,
+so it ignores these lines and a capture carrying histograms reduces exactly as
+one without them.
+
+---
+
+## Build & tooling
+
+### Module layout is a linker-script contract
+
+`emu68_module_layout(<target> [WRITABLE])` links a freestanding `.device`/`.library`
+through a shared `ldscripts/module.lds`, which states what source order plus
+`__attribute__((no_reorder))` only approximated — and stops approximating at all once LTO
+re-partitions the TUs: the do-not-execute stub at offset 0 (HUNK has no entry field, so
+`LoadSeg()` runs whatever is there), the romtag right after it, `_endOfCode` at the true
+end of `.text`, and a link-time `ASSERT` against any writable section, which retires the
+`emu68_rom_check()` POST_BUILD gate. `WRITABLE` waives that assert for a module never
+placed in ROM; the entry check has no waiver at all, so a stub that wants to do more than
+`moveq #-1,d0; rts` must still start with the `moveq`.
+
+### Interrupt servers declare themselves (`intserver.h`)
+
+A server answers with the Z condition code, not D0, and m68k GCC will happily end one
+with `move.l (sp)+,dN` — which sets Z from the restored register.
+`EMU68_INTSERVER(<name>)` gives a server a section of its own, so
+`emu68_isr_z_check(<t> SERVERS <name>…)` can slice it out of the *linked* module and check
+the bytes that ship, with LTO on or off. It also rejects a tail call out of the server, a
+call as the last thing to touch the CCR, and a server that ships undeclared.
+
+### Link-time optimization
+
+`emu68_enable_lto(<target>)` sets CMake's `INTERPROCEDURAL_OPTIMIZATION`;
+`emu68_lto_keep_real_objects(<t> <src>…)` holds a TU back. `EMU68_LTO` defaults to ON and
+degrades to a warning where binutils was built without plugin support.
+
+---
+
+## Improvements / fixes
+
+- **`pool_alloc` / `pool_zalloc` / `pool_free` and the LVO-flavour
+  `cache_pre_dma` / `cache_post_dma` are now macros** — the Exec call expands in
+  the caller, so a file that binds `EXEC_BASE_NAME` to a local `SysBase` cached
+  in fast RAM uses it instead of reading `$4` (an Amiga-bus cycle on PiStorm,
+  ~1.5 µs) per call. Call sites are unchanged; only taking their address stops
+  working, and no in-tree consumer does.
+- **Device-tree address translation is done in 64 bits.** A `ranges` record above
+  4 GiB was cut to 32 bits and could match the wrong address. A missing `reg`, or
+  an address no record covers, now gives NULL instead of an untranslated address.
+- **`DT_GetInterrupt()` uses the node's own interrupt parent** (the nearest
+  `interrupt-parent` at or above it) instead of the root's.
+
+---
+
 # Release notes — emu68-common 1.9.1
 
 Changes since 1.9.0.

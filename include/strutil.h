@@ -7,9 +7,13 @@
 LONG _Stricmp(CONST_STRPTR s1, CONST_STRPTR s2);
 LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len);
 
-/* Standard strncmp for third-party code in this -nostdlib tree; declared here
+/* Standard strcmp/strncmp/... for third-party code in this -nostdlib tree; declared here
  * (compatibly with <string.h>) so the definition has a prototype. */
+
+int strcmp(const char *s1, const char *s2);
 int strncmp(const char *s1, const char *s2, __SIZE_TYPE__ n);
+char *strcpy(char *dst, const char *src);
+int atoi(const char *s);
 
 /* Standard strlen and BSD strlcpy, same rationale. strlcpy copies at most
  * size-1 chars plus a NUL and returns strlen(src), so truncation shows as

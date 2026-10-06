@@ -17,11 +17,8 @@
 #ifdef __INTELLISENSE__
 #include <clib/exec_protos.h>
 #include <clib/devicetree_protos.h>
-extern struct ExecBase *SysBase;
-#define EXEC_BASE_NAME SysBase
 #else
 #define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #include <proto/devicetree.h>
 #endif
@@ -50,15 +47,17 @@ struct dma_puddle
 
 struct dma_pool
 {
+	struct ExecBase *sysBase; /* copied from ctx at create */
 	struct dma_mem_ctx *ctx;
 	struct dma_puddle *puddles;
 	ULONG puddle_size;
 };
 
-void dma_mem_init(struct dma_mem_ctx *ctx)
+void dma_mem_init(struct dma_mem_ctx *ctx, struct ExecBase *SysBase)
 {
 	if (ctx == NULL)
 		return;
+	ctx->sysBase = SysBase;
 	ctx->count = 0;
 
 	APTR DeviceTreeBase = OpenResource((CONST_STRPTR) "devicetree.resource");
@@ -68,22 +67,31 @@ void dma_mem_init(struct dma_mem_ctx *ctx)
 		return;
 	}
 
-	APTR mem_prop = DT_FindProperty(DT_OpenKey((CONST_STRPTR) "/memory"), (CONST_STRPTR) "reg");
-	if (mem_prop == NULL)
+	APTR memory = DT_OpenKey((CONST_STRPTR) "/memory");
+	if (memory == NULL)
+	{
+		Kprintf("[dma_mem] no /memory node; no DMA regions\n");
+		return;
+	}
+
+	/* The value stays valid after the key is closed */
+	APTR mem_prop = DT_FindProperty(memory, (CONST_STRPTR) "reg");
+	const u32 *reg = DT_GetPropValue(mem_prop);
+	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(ULONG);
+	DT_CloseKey(memory);
+	if (reg == NULL)
 	{
 		Kprintf("[dma_mem] no /memory reg property; no DMA regions\n");
 		return;
 	}
 
-	const u32 *reg = DT_GetPropValue(mem_prop); /* DT cells are 32-bit; matches DT_GetNumber's param on any NDK */
-	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(ULONG);
-
 	/* DT spec defaults (and the convention used throughout this stack): 2 address
 	 * cells, 1 size cell.  The root /memory layout is read with DT_GetNumber so
 	 * multi-cell values are assembled (not truncated) before the 2GB filter. */
 	APTR root = DT_OpenKey((CONST_STRPTR) "/");
-	ULONG addr_cells = DT_GetPropertyValueULONG(root, "#address-cells", 2, FALSE);
-	ULONG size_cells = DT_GetPropertyValueULONG(root, "#size-cells", 1, FALSE);
+	ULONG addr_cells = DT_GetPropertyValueULONG(DeviceTreeBase, root, "#address-cells", 2);
+	ULONG size_cells = DT_GetPropertyValueULONG(DeviceTreeBase, root, "#size-cells", 1);
+	DT_CloseKey(root);
 
 	/* Parse the raw /memory window(s): the Pi-DRAM physical extent.  These are used
 	 * only to discriminate which MEMF_FAST headers are Emu68 RAM (Zorro III /
@@ -118,9 +126,8 @@ void dma_mem_init(struct dma_mem_ctx *ctx)
 	 * [mh_Lower, mh_Upper) bounds become a DMA-reachable region, so dma_addr_reachable()
 	 * matches exactly what the pool can hand out and excludes chip RAM, ConfigDev
 	 * space, removed/split sub-ranges and the 2GB straddle. */
-	struct ExecBase *eb = EXEC_BASE_NAME;
 	Forbid();
-	for (struct MemHeader *mh = (struct MemHeader *)eb->MemList.lh_Head;
+	for (struct MemHeader *mh = (struct MemHeader *)SysBase->MemList.lh_Head;
 		 mh->mh_Node.ln_Succ != NULL && ctx->count < DMA_MEM_MAX_REGIONS;
 		 mh = (struct MemHeader *)mh->mh_Node.ln_Succ)
 	{
@@ -155,6 +162,7 @@ void dma_mem_init(struct dma_mem_ctx *ctx)
 
 static struct dma_puddle *dma_pool_grow(struct dma_pool *pool, ULONG need)
 {
+	struct ExecBase *SysBase = pool->sysBase;
 	ULONG arena_size = need > pool->puddle_size ? need : pool->puddle_size;
 	arena_size = ALIGN_UP(arena_size, MEM_BLOCKSIZE);
 
@@ -212,6 +220,7 @@ static struct dma_puddle *dma_pool_grow(struct dma_pool *pool, ULONG need)
  * both. It nests, so dma_pool_grow()'s own Forbid() is harmless here. */
 APTR dma_pool_region_alloc(struct dma_pool *pool, ULONG size)
 {
+	struct ExecBase *SysBase = pool->sysBase;
 	ULONG need = ALIGN_UP(size, MEM_BLOCKSIZE);
 
 	Forbid();
@@ -235,6 +244,7 @@ void dma_pool_region_free(struct dma_pool *pool, APTR ptr, ULONG size)
 {
 	if (ptr == NULL)
 		return;
+	struct ExecBase *SysBase = pool->sysBase;
 
 	ULONG need = ALIGN_UP(size, MEM_BLOCKSIZE);
 	ULONG a = (ULONG)ptr;
@@ -258,10 +268,12 @@ struct dma_pool *dma_pool_create(struct dma_mem_ctx *ctx)
 	if (ctx == NULL || ctx->count == 0)
 		return NULL;
 
+	struct ExecBase *SysBase = ctx->sysBase;
 	struct dma_pool *pool = AllocMem(sizeof(*pool), MEMF_FAST | MEMF_PUBLIC | MEMF_CLEAR);
 	if (pool == NULL)
 		return NULL;
 
+	pool->sysBase = SysBase;
 	pool->ctx = ctx;
 	pool->puddles = NULL;
 	pool->puddle_size = DMA_POOL_PUDDLE_SIZE;
@@ -272,6 +284,7 @@ void dma_pool_delete(struct dma_pool *pool)
 {
 	if (pool == NULL)
 		return;
+	struct ExecBase *SysBase = pool->sysBase;
 
 	struct dma_puddle *pud = pool->puddles;
 	while (pud)

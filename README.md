@@ -9,13 +9,15 @@ Common support library used by Emu68 AmigaOS drivers.
 
 This package provides shared helper code such as debug output, formatted printing, GPIO helpers, device-tree wrapper utilities, a DMA memory facility (`dma_mem.h`), DMA cache maintenance (`cache_ops.h`), and a reset guard (`reset_guard.h`) that lets DMA-capable drivers quiesce their hardware before the Amiga resets.
 
+Nothing here reads the Exec base from address 4 (an Amiga-bus cycle on PiStorm). Helpers that call Exec take the caller's `SysBase`, stored once in their context struct where they have one, and the `pool_*`/`cache_*` macros expand against the caller's `EXEC_BASE_NAME`.
+
 ## DMA memory (`dma_mem.h`)
 
 On PiStorm/Emu68 only Emu68 Fast RAM — the Pi's own DRAM, advertised in the device-tree `/memory` node and added to Exec as high-priority "expansion memory" — is reachable by the Pi's PCIe / on-SoC DMA engines. Chip RAM and Zorro III / accelerator Fast RAM are not. `AllocMem(MEMF_FAST)` usually returns Emu68 RAM, but not once it is exhausted, so DMA-capable drivers cannot rely on it.
 
 `dma_mem.h` discovers the Emu68 RAM regions once (from `/memory`) into a caller-owned `struct dma_mem_ctx` (embed it in the device base / controller struct) and offers:
 
-- `dma_mem_init(ctx)` — discover the regions; call once early in driver init.
+- `dma_mem_init(ctx, SysBase)` — discover the regions; call once early in driver init. The context keeps the caller's `SysBase`, and pools created from it copy it.
 - `dma_addr_reachable(ctx, addr, len)` — transport-agnostic predicate (PCIe and on-SoC genet alike) for bounce-buffer decisions. Returns `TRUE` only when `[addr, addr+len)` lies entirely within Emu68 RAM; fails safe (caller bounces) when `ctx` is `NULL` or no regions were found.
 - `dma_pool_create(ctx)` / `dma_pool_delete(pool)` — a region-restricted `struct dma_pool` that *always* allocates from Emu68 RAM, so persistent DMA structures and bounce buffers stay reachable even under Emu68-RAM pressure. `ctx` must outlive the pool.
 - `dma_alloc(pool, align, size)` / `dma_zalloc(...)` / `dma_free(pool, ptr)` — DMA-buffer allocation from a region pool. Cache-line-aligned (or coarser) requests are rounded up so the buffer owns whole cache lines at both ends.
@@ -24,7 +26,7 @@ A `struct dma_pool *` handle is valid only for the `dma_alloc`/`dma_zalloc`/`dma
 
 ## Reset guard (`reset_guard.h`)
 
-`reset_guard_install(rg, prepare, user, name)` runs a driver "prepare for reset" callback before the Amiga resets, covering the Ctrl-Amiga-Amiga keyboard reset-warning protocol and `ColdReboot()` (C:Reboot, Installer, ...). The `prepare()` callback must be interrupt-safe and is invoked at most once per session. The module is ROM-able and task-less; all mutable state lives in the caller-provided `struct reset_guard`. `reset_guard_remove(rg)` is for expunge only and fails if the `ColdReboot` vector was re-patched by someone else.
+`reset_guard_install(rg, SysBase, prepare, user, name)` runs a driver "prepare for reset" callback before the Amiga resets, covering the Ctrl-Amiga-Amiga keyboard reset-warning protocol and `ColdReboot()` (C:Reboot, Installer, ...). The `prepare()` callback must be interrupt-safe and is invoked at most once per session. The module is ROM-able and task-less; all mutable state lives in the caller-provided `struct reset_guard`. `reset_guard_remove(rg)` is for expunge only and fails if the `ColdReboot` vector was re-patched by someone else.
 
 ## DMA cache maintenance (`cache_ops.h`)
 
@@ -56,19 +58,19 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `bits.h` | Bit and alignment helpers: `ALIGN_UP`, `DIV_CEIL`, `BIT()`, mask extract/insert/update, `log2_floor_u32/u64`, `round_up_pow2_u32/u64`, and `u64` hi/lo splits. |
 | `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
 | `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
-| `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` plus read-modify-write helpers (`mmio_update/clear/set`) and `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout). |
-| `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: base-address resolution (`DT_GetBaseAddress[Virtual]`), property/number reads, `DT_TranslateAddress`, and `DT_GetInterrupt`. |
+| `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` (each followed by a barrier) plus read-modify-write helpers (`mmio_update/clear/set`), `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout), and the `mmio_read32_relaxed` / `mmio_write32_relaxed` pair without the barrier, for batches the caller closes with one explicit `emu68_barrier()`. |
+| `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: alias and phandle lookup, property/number reads, base-address resolution (`DT_GetBaseAddressVirtual`) and `DT_GetInterrupt`. The caller opens the resource and passes it in. |
 | `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (the raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property, revision 1 — also tells "not under Emu68" apart from "capability absent"; callable anywhere, used by `emu68check`) and `emu68_has_dcache_range_ops()` (the driver init gate — folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`; only the cache-ops consumer components may call the wrapper). |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
-| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. |
+| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. `memcpy`/`memset` are asm (`memcpy_movem.S`/`memset_movem.S`: longword loop for short sizes, `movem.l` blocks for long ones): any alignment, 68020+, no Exec call — interrupt-callable and ROM-safe; `memmove` shares the guarantee. |
 | `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence). |
 | `drv_timer.h` | A `timer.device` (MICROHZ) instance held open across a burst of waits — one `drv_timer_open()` serves many synchronous sleeps (`drv_timer_sleep_ms`) or periodic arms (`drv_timer_arm_ms` / `drv_timer_consume` / `drv_timer_sigmask`), instead of the open/close dance per wait. Caller-owned state, ROM-safe. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
-| `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines). Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`. |
+| `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines) plus value histograms (`struct perf_hist`, `PERF_HIST_ADD` / `perf_hist_report`) for distributions an average would hide. Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`, which reads the timing lines and skips the histogram ones. |
 | `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus standard `strncmp()`/`strlen()`/`strlcpy()` for third-party code. |
-| `format.h` | Bounded formatted printing: `_SNPrintf` / `_VSNPrintf`. |
-| `debug.h` | Debug logging, one printer per tier (`KprintfP`/`Kprintf`/`KprintfT`, plus `KASSERT` and the shared `PrintPistorm` formatter). Output sink set by `EMU68_DEBUG_BACKEND` (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → `debug.lib` serial); compiled out for `off`. See *Debug output backend and tiers*. |
+| `format.h` | The stack's printf engine: C argument rules (every argument 32-bit, `%d`/`%u`/`%x`/`%p`/`%s`/`%c`, width, precision), no Exec call — interrupt-safe, ROM-safe, no `SysBase`. Streaming front ends `fmt_vformat` (va_list) and `fmt_aformat` (array of 32-bit cells), and the bounded `_SNPrintf` / `_VSNPrintf` / `_SNPrintfArgs` with C `snprintf` semantics. |
+| `debug.h` | Debug logging, one printer per tier (`KprintfP`/`Kprintf`/`KprintfT`, plus `KASSERT` and the shared `PrintPistorm` formatter). Formats with `fmt_vformat` (C argument rules, no Exec). Output sink set by `EMU68_DEBUG_BACKEND` (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → Exec `RawPutChar`, the `kprintf` path); compiled out for `off`. See *Debug output backend and tiers*. |
 | `errors.h` | `errno`-style codes (`EINVAL`, `EIO`, `ETIMEDOUT`, `ENOMEM`, …) used by the ported hardware code. |
 | `minlist.h` | `_NewMinList()` — initialise a `struct MinList` without the Kickstart V45 `NewMinList()` dependency. |
 
@@ -105,8 +107,8 @@ cmake -S . -B build ... -DEMU68_DEBUG_BACKEND=serial   # pistorm | serial | off
 
 | Value     | Output                                                       | ROM-able |
 |-----------|--------------------------------------------------------------|----------|
-| `pistorm` | `RawDoFmt` → magic `0xdeadbeef` (Emu68/PiStorm trap)          | yes      |
-| `serial`  | `debug.lib` `KPutChar` → AmigaOS serial console @ 9600 baud   | no       |
+| `pistorm` | `fmt_vformat` → magic `0xdeadbeef` (Emu68/PiStorm trap)       | yes      |
+| `serial`  | `fmt_vformat` → Exec `RawPutChar` (serial port, or Sashimi & co.) | yes |
 | `off`     | debug output compiled out                                    | yes      |
 
 The backend sets `DEBUG_SINK` (a sink exists) and, for `serial`, `DEBUG_SERIAL`.
@@ -117,10 +119,10 @@ picks what is emitted, as a cumulative ladder — `profile` defines `PROFILE`,
 tier macros gate the printers, so `perf.c`'s reporter stays available to a
 `PROFILE`-tier consumer even when *this* component is built at tier `off`.
 
-The module exports `emu68_debug_definitions()`,
-`emu68_debug_backend_finalize(<target> [ROMABLE])` and the
+The module exports `emu68_debug_definitions()` and the
 `emu68_tier_at_least(<out> <rung>)` predicate, which downstream components call
-instead of hardcoding `-DDEBUG` / `emu68_rom_check`.
+instead of hardcoding `-DDEBUG`.  (ROM-ability is no longer part of this module:
+it is an `ASSERT` in `ldscripts/module.lds`, applied by `emu68_module_layout()`.)
 
 ### Cache-ops LVO fallback
 

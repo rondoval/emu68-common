@@ -19,13 +19,14 @@ struct timerequest;
 
 struct drv_timer
 {
+	struct ExecBase *sysBase; /* the caller's, from drv_timer_open() */
 	struct MsgPort *port;
 	struct timerequest *req;
 };
 
 /* Open a MICROHZ timer; FALSE = timer.device unavailable (fields left NULL,
  * every other call is then a safe no-op). */
-BOOL drv_timer_open(struct drv_timer *t);
+BOOL drv_timer_open(struct drv_timer *t, struct ExecBase *SysBase);
 void drv_timer_close(struct drv_timer *t);
 
 /* Synchronous sleep (DoIO). Must not be mixed with an armed request. */

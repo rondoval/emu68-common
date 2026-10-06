@@ -30,8 +30,6 @@ target_link_options(emu68check PRIVATE -s)
 # dir and devicetree usage requirements, plus _Stricmp from strutil.
 target_link_libraries(emu68check PRIVATE common)
 
-# Hosted CLI program: for the serial backend, link debug.lib (KPrintF). libc
-# supplies __divsi3, so no glue and no ROM check.
-emu68_debug_backend_finalize(emu68check)
+# Hosted CLI program: not ROMABLE, so no ROM check.
 
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/emu68check DESTINATION C)

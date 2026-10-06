@@ -3,7 +3,6 @@
 #include <clib/exec_protos.h>
 #else
 #define __NOLIBBASE__
-#define EXEC_BASE_NAME (*(struct ExecBase **)4UL)
 #include <proto/exec.h>
 #endif
 
@@ -13,8 +12,9 @@
 #include <drv_timer.h>
 #include <debug.h>
 
-BOOL drv_timer_open(struct drv_timer *t)
+BOOL drv_timer_open(struct drv_timer *t, struct ExecBase *SysBase)
 {
+	t->sysBase = SysBase;
 	t->req = NULL;
 	t->port = CreateMsgPort();
 	if (!t->port)
@@ -43,6 +43,7 @@ BOOL drv_timer_open(struct drv_timer *t)
 
 void drv_timer_close(struct drv_timer *t)
 {
+	struct ExecBase *SysBase = t->sysBase;
 	if (!t->req)
 		return;
 	CloseDevice((struct IORequest *)t->req);
@@ -61,6 +62,7 @@ static void drv_timer_load(struct drv_timer *t, ULONG ms)
 
 void drv_timer_sleep_ms(struct drv_timer *t, ULONG ms)
 {
+	struct ExecBase *SysBase = t->sysBase;
 	if (!t->req || ms == 0)
 		return;
 	drv_timer_load(t, ms);
@@ -69,6 +71,7 @@ void drv_timer_sleep_ms(struct drv_timer *t, ULONG ms)
 
 void drv_timer_arm_ms(struct drv_timer *t, ULONG ms)
 {
+	struct ExecBase *SysBase = t->sysBase;
 	if (!t->req)
 		return;
 	drv_timer_load(t, ms);
@@ -77,6 +80,7 @@ void drv_timer_arm_ms(struct drv_timer *t, ULONG ms)
 
 void drv_timer_consume(struct drv_timer *t)
 {
+	struct ExecBase *SysBase = t->sysBase;
 	if (!t->req)
 		return;
 	if (CheckIO((struct IORequest *)t->req))
@@ -85,6 +89,7 @@ void drv_timer_consume(struct drv_timer *t)
 
 void drv_timer_cancel(struct drv_timer *t)
 {
+	struct ExecBase *SysBase = t->sysBase;
 	if (!t->req)
 		return;
 	AbortIO((struct IORequest *)t->req);

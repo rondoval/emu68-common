@@ -140,6 +140,7 @@ BYTE drv_unit_msgport_init(struct ExecBase *SysBase, struct Unit *unit)
 
 void drv_task_exit(struct ExecBase *SysBase, struct Task **slot, struct Task *parent, BOOL ranLoop)
 {
+    Forbid(); /* never undone: the task's end drops it */
     *slot = NULL;
     Signal(parent, ranLoop ? SIGBREAKF_CTRL_F : SIGBREAKF_CTRL_C);
 }

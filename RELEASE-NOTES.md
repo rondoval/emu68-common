@@ -180,6 +180,11 @@ degrades to a warning where binutils was built without plugin support.
   an address no record covers, now gives NULL instead of an untranslated address.
 - **`DT_GetInterrupt()` uses the node's own interrupt parent** (the nearest
   `interrupt-parent` at or above it) instead of the root's.
+- **`drv_task_exit()` returns in Forbid**, which ends with the task. The join
+  sees the slot clear and the expunge may free the code at once; before, a
+  joiner of equal or higher priority could run in between and free code the
+  exiting task was still executing. Callers already return right after it
+  (every in-tree one does); nothing else changes.
 
 ---
 

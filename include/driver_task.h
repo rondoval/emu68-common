@@ -58,7 +58,10 @@ BYTE drv_unit_msgport_init(struct ExecBase *SysBase, struct Unit *unit);
 /*
  * Canonical task exit: clear the liveness slot FIRST (drv_task_join polls
  * it), then report CTRL_F for a task that reached its wait loop or CTRL_C for
- * one that never got there (drv_task_spawn maps CTRL_C to -EIO).
+ * one that never got there (drv_task_spawn maps CTRL_C to -EIO).  Returns in
+ * Forbid, which ends with the task: the caller returns at once.  The joiner's
+ * expunge may free the task's code as soon as the slot reads NULL, so no other
+ * task may run, whatever the priorities, until this one is gone.
  */
 void drv_task_exit(struct ExecBase *SysBase, struct Task **slot, struct Task *parent, BOOL ranLoop);
 

@@ -45,24 +45,31 @@ static APTR dt_find_up(APTR DeviceTreeBase, APTR key, CONST_STRPTR propname)
 }
 
 /*
- * dt_translate - an address on the bus @bus, as the bus's parent sees it.
+ * dt_map - map [addr, addr + len) across the bus @bus through its "ranges" or
+ * "dma-ranges".
  *
- * The bus node's "ranges" lists <child address, parent address, size> records:
- * the child address and the size in the bus's own #address-cells and #size-cells,
- * the parent address in the #address-cells of the bus's parent.  An empty "ranges"
- * means both sides use the same addresses.  One level only: on Emu68 the parent of
- * /soc and /scb is the root, and its addresses are the ones the 68k side uses.
+ * Both list <child address, parent address, size> records: the child address
+ * and the size in the bus's own #address-cells and #size-cells, the parent
+ * address in the #address-cells of the bus's parent.  An empty property means
+ * both sides use the same addresses.  @to_parent: @addr is a child address and
+ * the result the parent's ("ranges": registers as the CPU sees them); else the
+ * other way round ("dma-ranges": CPU memory as the bus's DMA masters see it).
+ * One level only: on Emu68 the parent of /soc and /scb is the root.
  *
- * Returns NULL if the bus has no "ranges", no record covers @addr, or the result
- * does not fit a 32-bit pointer.
+ * Returns FALSE if the bus has no such property, no record covers the whole
+ * span, or the result does not fit 32 bits.  @from_range, if not NULL, gets
+ * the covering record's extent on @addr's side, [start, end), at most 32 bits
+ * (both 0 for an empty property, which maps everything).
  */
-static APTR dt_translate(APTR DeviceTreeBase, APTR bus, u64 addr)
+static BOOL dt_map(APTR DeviceTreeBase, APTR bus, CONST_STRPTR propname, BOOL to_parent, u64 addr, u64 len, u32 *out,
+                   u32 *from_range)
 {
-	APTR prop = DT_FindProperty(bus, (CONST_STRPTR) "ranges");
+	APTR prop = DT_FindProperty(bus, propname);
 	if (prop == NULL)
 	{
-		Kprintf("[devtree] %s: No ranges to translate address 0x%lx%08lx with\n", __func__, (ULONG)(addr >> 32), (ULONG)addr);
-		return NULL;
+		Kprintf("[devtree] %s: %s has no %s to map 0x%lx%08lx with\n", __func__, DT_GetKeyName(bus), propname,
+				(ULONG)(addr >> 32), (ULONG)addr);
+		return FALSE;
 	}
 
 	const u32 child_cells = DT_GetPropertyValueULONG(DeviceTreeBase, bus, "#address-cells", 2);
@@ -73,35 +80,47 @@ static APTR dt_translate(APTR DeviceTreeBase, APTR bus, u64 addr)
 	const u32 *rec = DT_GetPropValue(prop);
 	u32 cells_left = DT_GetPropLen(prop) / sizeof(u32);
 
-	u64 translated = addr; /* an empty "ranges": the same address on both sides */
+	u64 mapped = addr; /* an empty property: the same address on both sides */
+	u64 range_start = 0, range_end = 0;
 	BOOL covered = (cells_left == 0);
 	for (; !covered && record_cells != 0 && cells_left >= record_cells; rec += record_cells, cells_left -= record_cells)
 	{
 		const u64 child = DT_GetNumber(rec, child_cells);
 		const u64 parent = DT_GetNumber(rec + child_cells, parent_cells);
 		const u64 size = DT_GetNumber(rec + child_cells + parent_cells, size_cells);
-		KprintfT("[devtree] %s: child=0x%lx%08lx parent=0x%lx%08lx size=0x%lx%08lx\n", __func__,
+		KprintfT("[devtree] %s: %s child=0x%lx%08lx parent=0x%lx%08lx size=0x%lx%08lx\n", __func__, propname,
 				 (ULONG)(child >> 32), (ULONG)child, (ULONG)(parent >> 32), (ULONG)parent, (ULONG)(size >> 32), (ULONG)size);
 
-		/* Does this record cover addr, i.e. child <= addr < child + size?  The upper
-		 * bound is tested as an offset: child + size wraps to 0 for a record that
-		 * ends at the top of the address space, addr - child cannot wrap once
-		 * addr >= child.  The same offset then applies on the parent side. */
-		if (addr >= child && addr - child < size)
+		/* Does this record cover the span, i.e. from <= addr and addr + len <= from + size?
+		 * Tested as offsets: from + size wraps to 0 for a record that ends at the top
+		 * of the address space, addr - from cannot wrap once addr >= from.  The same
+		 * offset then applies on the other side. */
+		const u64 from = to_parent ? child : parent;
+		const u64 to = to_parent ? parent : child;
+		if (addr >= from && addr - from < size && len <= size - (addr - from))
 		{
-			translated = parent + (addr - child);
+			mapped = to + (addr - from);
+			range_start = from;
+			range_end = from + size;
 			covered = TRUE;
 		}
 	}
 
-	if (!covered || translated > 0xFFFFFFFFULL)
+	if (!covered || mapped > 0xFFFFFFFFULL || len - 1u > 0xFFFFFFFFULL - mapped)
 	{
-		Kprintf("[devtree] %s: No translation found for address 0x%lx%08lx\n", __func__, (ULONG)(addr >> 32), (ULONG)addr);
-		return NULL;
+		Kprintf("[devtree] %s: %s of %s does not map 0x%lx%08lx\n", __func__, propname, DT_GetKeyName(bus),
+				(ULONG)(addr >> 32), (ULONG)addr);
+		return FALSE;
 	}
 
-	KprintfT("[devtree] %s: Virtual address=0x%08lx\n", __func__, (ULONG)translated);
-	return (APTR)(ULONG)translated;
+	KprintfT("[devtree] %s: %s: 0x%08lx\n", __func__, propname, (ULONG)mapped);
+	*out = (u32)mapped;
+	if (from_range != NULL)
+	{
+		from_range[0] = range_start > 0xFFFFFFFFULL ? 0xFFFFFFFFu : (u32)range_start;
+		from_range[1] = range_end > 0xFFFFFFFFULL || range_end == 0 ? 0xFFFFFFFFu : (u32)range_end;
+	}
+	return TRUE;
 }
 
 APTR DT_GetBaseAddressVirtual(APTR DeviceTreeBase, APTR key, u32 index)
@@ -120,24 +139,72 @@ APTR DT_GetBaseAddressVirtual(APTR DeviceTreeBase, APTR key, u32 index)
 	}
 
 	const u32 *rec = (const u32 *)DT_GetPropValue(reg) + index * record_cells;
-	return dt_translate(DeviceTreeBase, bus, DT_GetNumber(rec, addr_cells));
+	u32 virt;
+	if (!dt_map(DeviceTreeBase, bus, (CONST_STRPTR) "ranges", TRUE, DT_GetNumber(rec, addr_cells), 1, &virt, NULL))
+		return NULL;
+	return (APTR)virt;
+}
+
+BOOL DT_GetDmaAddress(APTR DeviceTreeBase, APTR key, u32 phys, u32 len, u32 *dma)
+{
+	return len != 0 && dt_map(DeviceTreeBase, DT_GetParent(key), (CONST_STRPTR) "dma-ranges", FALSE, phys, len, dma, NULL);
+}
+
+BOOL DT_GetDmaWindow(APTR DeviceTreeBase, APTR key, u32 phys, u32 len, u32 *dma, u32 *cpu_start, u32 *cpu_end)
+{
+	u32 range[2];
+	if (len == 0 || !dt_map(DeviceTreeBase, DT_GetParent(key), (CONST_STRPTR) "dma-ranges", FALSE, phys, len, dma, range))
+		return FALSE;
+	*cpu_start = range[0];
+	*cpu_end = range[1];
+	return TRUE;
+}
+
+BOOL DT_GetEmu68Range(APTR DeviceTreeBase, CONST_STRPTR name, u32 *base, u32 *size)
+{
+	APTR key = DT_OpenKey((CONST_STRPTR) "/emu68");
+	if (key == NULL)
+		return FALSE;
+
+	APTR prop = DT_FindProperty(key, name);
+	BOOL found = DT_GetPropLen(prop) >= 2u * sizeof(u32);
+	if (found)
+	{
+		const u32 *v = DT_GetPropValue(prop); /* big-endian cells, as Emu68 writes them: native here */
+		*base = v[0];
+		*size = v[1];
+	}
+	DT_CloseKey(key);
+	return found;
+}
+
+/* The path the property @name of the node @table (/aliases, /__symbols__) holds; NULL if none. */
+static CONST_STRPTR dt_path_of(APTR DeviceTreeBase, CONST_STRPTR table, CONST_STRPTR name)
+{
+	APTR key = DT_OpenKey(table);
+	if (key == NULL)
+	{
+		Kprintf("[devtree] %s: Failed to open key %s\n", __func__, table);
+		return NULL;
+	}
+
+	CONST_STRPTR value = DT_GetPropValue(DT_FindProperty(key, name));
+	DT_CloseKey(key);
+
+	if (value == NULL)
+		Kprintf("[devtree] %s: %s has no %s\n", __func__, table, name);
+	return value;
 }
 
 CONST_STRPTR DT_GetAlias(APTR DeviceTreeBase, CONST_STRPTR alias)
 {
-	APTR key = DT_OpenKey((CONST_STRPTR) "/aliases");
-	if (key == NULL)
-	{
-		Kprintf("[devtree] %s: Failed to open key /aliases\n", __func__);
-		return NULL;
-	}
+	return dt_path_of(DeviceTreeBase, (CONST_STRPTR) "/aliases", alias);
+}
 
-	CONST_STRPTR value = DT_GetPropValue(DT_FindProperty(key, alias));
-	DT_CloseKey(key);
-
-	if (value == NULL)
-		Kprintf("[devtree] %s: Failed to find alias %s\n", __func__, alias);
-	return value;
+APTR DT_OpenSymbol(APTR DeviceTreeBase, CONST_STRPTR label)
+{
+	CONST_STRPTR path = dt_path_of(DeviceTreeBase, (CONST_STRPTR) "/__symbols__", label);
+	return path != NULL ? DT_OpenKey(path) : NULL;
 }
 
 APTR DT_FindByPHandle(APTR DeviceTreeBase, APTR key, u32 phandle)

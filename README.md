@@ -59,7 +59,7 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
 | `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
 | `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` (each followed by a barrier) plus read-modify-write helpers (`mmio_update/clear/set`), `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout), and the `mmio_read32_relaxed` / `mmio_write32_relaxed` pair without the barrier, for batches the caller closes with one explicit `emu68_barrier()`. |
-| `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: alias and phandle lookup, property/number reads, base-address resolution (`DT_GetBaseAddressVirtual`) and `DT_GetInterrupt`. The caller opens the resource and passes it in. |
+| `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: alias, symbol (`/__symbols__` label, `DT_OpenSymbol`) and phandle lookup, property/number reads, base-address resolution (`DT_GetBaseAddressVirtual`), DMA-address resolution through `dma-ranges` (`DT_GetDmaAddress`, `DT_GetDmaWindow` with the reachable range), Emu68 carve-outs (`DT_GetEmu68Range`) and `DT_GetInterrupt`. The caller opens the resource and passes it in. |
 | `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (the raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property, revision 1 — also tells "not under Emu68" apart from "capability absent"; callable anywhere, used by `emu68check`) and `emu68_has_dcache_range_ops()` (the driver init gate — folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`; only the cache-ops consumer components may call the wrapper). |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
@@ -123,6 +123,25 @@ The module exports `emu68_debug_definitions()` and the
 `emu68_tier_at_least(<out> <rung>)` predicate, which downstream components call
 instead of hardcoding `-DDEBUG`.  (ROM-ability is no longer part of this module:
 it is an `ASSERT` in `ldscripts/module.lds`, applied by `emu68_module_layout()`.)
+
+### SFD headers
+
+Libraries generate their `clib/`, `inline/`, `pragmas/` and `proto/` headers
+from an SFD with sfdc through the installed `cmake/Emu68CommonSfd.cmake`
+module, loaded by `find_package(Emu68Common)`:
+
+```cmake
+emu68_sfd_headers(foo_sfd_headers ALL
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/include
+    SFD ${CMAKE_CURRENT_SOURCE_DIR}/sfd/foo.sfd)
+add_dependencies(foo_library foo_sfd_headers)
+```
+
+`SFD` takes several files; each one's headers are named after the file
+without `.sfd` and without the NDK's `_lib` suffix (`Picasso96API_lib.sfd`
+gives `proto/Picasso96API.h`). `ALL` builds them with the default target;
+without it, only for whatever depends on the target. The module finds sfdc
+itself (`/opt/m68k-amigaos/bin` in the build container).
 
 ### Cache-ops LVO fallback
 

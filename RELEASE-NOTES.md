@@ -134,6 +134,37 @@ Empty buckets are omitted, and a histogram with no samples prints nothing.
 so it ignores these lines and a capture carrying histograms reduces exactly as
 one without them.
 
+### `devtree.h`: DMA addresses from `dma-ranges` (`DT_GetDmaAddress`, `DT_GetDmaWindow`)
+
+`DT_GetDmaAddress(DeviceTreeBase, node, phys, len, &dma)` gives the address a
+device uses to reach CPU memory by DMA, translated through the `dma-ranges` of
+the node's parent bus (on the Pi 4, `/soc` maps the lowest GiB at
+`0xC0000000`). It fails if the bus has no `dma-ranges` or no record covers the
+whole span. `ranges` and `dma-ranges` share one record walker, so
+`DT_GetBaseAddressVirtual` is unchanged in behaviour.
+
+`DT_GetDmaWindow(DeviceTreeBase, node, phys, len, &dma, &cpu_start, &cpu_end)`
+does the same and also returns the window the translation came from: the CPU
+physical bounds `[cpu_start, cpu_end)` of the `dma-ranges` record that matched.
+Every CPU address in the window is reachable by the device at the same offset,
+so after translating one buffer a driver tests the others against the window
+and adds `dma - phys`, with no further lookups. On the Pi 4 the window is
+`[0, 0x40000000)` at `+0xC0000000`; on the Pi 3 it is `[0, 0x3F000000)` at the
+same offset. The end is `0xFFFFFFFF` when the record reaches past 4 GiB, and an
+empty `dma-ranges` (everything mapped one to one) gives `[0, 0xFFFFFFFF)`.
+
+### `devtree.h`: node labels (`DT_OpenSymbol`)
+
+`DT_OpenSymbol(DeviceTreeBase, label)` opens the node `/__symbols__` gives a
+label (the names overlays use, such as `vchiq` or `xhci`), for nodes that no
+`/aliases` entry names. It shares its lookup with `DT_GetAlias`.
+
+### `devtree.h`: Emu68's memory carve-outs (`DT_GetEmu68Range`)
+
+`DT_GetEmu68Range(DeviceTreeBase, name, &base, &size)` reads one of Emu68's
+memory carve-outs, the `<base size>` properties of `/emu68` (`vchiq-mem`,
+`unicam-mem`, `vc4-mem`). It fails when Emu68 does not set that one.
+
 ---
 
 ## Build & tooling
@@ -164,6 +195,16 @@ call as the last thing to touch the CCR, and a server that ships undeclared.
 `emu68_enable_lto(<target>)` sets CMake's `INTERPROCEDURAL_OPTIMIZATION`;
 `emu68_lto_keep_real_objects(<t> <src>…)` holds a TU back. `EMU68_LTO` defaults to ON and
 degrades to a warning where binutils was built without plugin support.
+
+### SFD headers (`emu68_sfd_headers`)
+
+`emu68_sfd_headers(<target> [ALL] OUTPUT_DIR <dir> SFD <file>…)` generates the
+`clib/`, `inline/`, `pragmas/` and `proto/` headers of each SFD with sfdc and makes
+`<target>` the custom target that builds them; it finds sfdc itself. Headers are named
+after the SFD file without `.sfd` and without the NDK's `_lib` suffix
+(`Picasso96API_lib.sfd` gives `proto/Picasso96API.h`). It replaces the
+`GenerateSfdHeaders.cmake` copy each library carried: gic400.library, bcmpcie.library and
+the vchiq component use it now.
 
 ---
 

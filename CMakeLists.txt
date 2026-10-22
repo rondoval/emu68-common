@@ -109,6 +109,8 @@ install(FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonLto.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonSfd.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonSfdScript.cmake
 	DESTINATION lib/cmake/Emu68Common
 )
 

@@ -47,6 +47,10 @@ instead of hardcoding `-DDEBUG`: `emu68_debug_definitions()` (sets
 submodule).  ROM-ability is not part of this module: it is an `ASSERT` in
 `ldscripts/module.lds`, applied by `emu68_module_layout()`.
 
+SFD header generation is `emu68_sfd_headers()` (`cmake/Emu68CommonSfd.cmake`,
+with the sfdc runner `cmake/Emu68CommonSfdScript.cmake`); components call it
+instead of carrying their own copy of the script.
+
 Note: `debug.h` includes `<proto/exec.h>` only under `DEBUG_SINK`; sources
 that call exec functions must include it themselves (the `#define
 __NOLIBBASE__` / `EXEC_BASE_NAME (*(struct ExecBase**)4UL)` idiom).

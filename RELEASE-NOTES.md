@@ -38,6 +38,12 @@ memory carve-outs, the `<base size>` properties of `/emu68` (`vc4-mem`,
 `unicam-mem`). It fails when Emu68 does not set that one. (The uncached CMA block
 is a node of its own, `/emu68/cma`, with its allocator in `cma.resource`.)
 
+### `bits.h`: `ARRAY_SIZE`, `CONTAINER_OF`, `umin`/`umax`
+
+`ARRAY_SIZE(a)` counts an array's elements, `CONTAINER_OF(pointer, type, member)`
+gives the structure that holds a member (a list node, an embedded request), and
+`umin()`/`umax()` are the unsigned twins of `min()`/`max()`.
+
 ### `drv_waitq.h`: wait for a condition under a lock, with a timeout
 
 `drv_wait_event(wq, SysBase, lock, pred, a, b, timeout_ms)` sleeps with the caller's

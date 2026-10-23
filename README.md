@@ -77,24 +77,22 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 
 ## Dependencies
 
-- `devicetree.resource`
+- the `devicetree.resource` client headers (`<proto/devicetree.h>`), shipped by the toolchain
+  image (amiga-build-container) on the compiler's default include path
 
 ## Building
 
 Use Bebbo's GCC cross compiler and CMake.
 
-Recommended workflow: install dependencies and this package into one shared prefix.
+Recommended workflow: install this package into the stack's shared prefix.
 
 ```sh
 cmake -S . -B build \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.cmake \
-  -DCMAKE_PREFIX_PATH=/path/to/emu68-driver-stack \
   -DCMAKE_INSTALL_PREFIX=/path/to/emu68-driver-stack
 cmake --build build
 cmake --install build
 ```
-
-If you keep dependencies in separate install trees, point `CMAKE_PREFIX_PATH` at the `devicetree.resource` install prefix instead.
 
 ### Debug output backend and tiers
 
@@ -139,8 +137,8 @@ add_dependencies(foo_library foo_sfd_headers)
 ```
 
 `SFD` takes several files; each one's headers are named after the file
-without `.sfd` and without the NDK's `_lib` suffix (`Picasso96API_lib.sfd`
-gives `proto/Picasso96API.h`). `ALL` builds them with the default target;
+without `.sfd` and without the NDK's `_lib` suffix (`exec_lib.sfd`
+gives `proto/exec.h`). `ALL` builds them with the default target;
 without it, only for whatever depends on the target. The module finds sfdc
 itself (`/opt/m68k-amigaos/bin` in the build container).
 

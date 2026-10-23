@@ -6,8 +6,7 @@
 # <target> wherever the headers are used.
 #
 # The header base name is the SFD's file name without ".sfd" and without the NDK's
-# "_lib" suffix: exec_lib.sfd gives proto/exec.h, Picasso96API_lib.sfd gives
-# proto/Picasso96API.h, bcmpcie.sfd gives proto/bcmpcie.h.
+# "_lib" suffix: exec_lib.sfd gives proto/exec.h, bcmpcie.sfd gives proto/bcmpcie.h.
 #
 # ALL builds <target> with the default target (a library that installs the headers);
 # without it they are built only when something depends on <target>.

@@ -6,9 +6,6 @@ if(EMU68_BUILD_STAMP)   # local-build marker from the stack's build.sh; empty in
     string(APPEND CURRENT_DATE " ${EMU68_BUILD_STAMP}")
 endif()
 
-# Dependencies
-find_package(devicetree 1.6 CONFIG REQUIRED)
-
 # Debug sink + tier selection (shared by the whole stack).
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonLto.cmake)
@@ -62,11 +59,6 @@ target_include_directories(common
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
-)
-
-target_link_libraries(common
-	PUBLIC
-		devicetree::devicetree
 )
 
 add_subdirectory(tools)

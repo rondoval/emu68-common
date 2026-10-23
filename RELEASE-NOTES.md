@@ -63,14 +63,17 @@ Moved here from the vchiq component (vchiq.device and videocore.codec use it).
 `clib/`, `inline/`, `pragmas/` and `proto/` headers of each SFD with sfdc and makes
 `<target>` the custom target that builds them; it finds sfdc itself. Headers are named
 after the SFD file without `.sfd` and without the NDK's `_lib` suffix
-(`Picasso96API_lib.sfd` gives `proto/Picasso96API.h`). It replaces the
+(`foo_lib.sfd` gives `proto/foo.h`). It replaces the
 `GenerateSfdHeaders.cmake` copy each library carried: gic400.library, bcmpcie.library and
 the vchiq component use it now.
 
-### `find_package(devicetree 1.6)`
+### devicetree.resource headers from the toolchain image
 
-The library asks for devicetree.resource 1.6, the version it is built against;
-an older one fails at configure instead of mid-build.
+`<proto/devicetree.h>` and its clib/inline headers now come with the toolchain image
+(amiga-build-container, generated there from the upstream SFD at a pinned commit), on
+the compiler's default include path. The library no longer finds or links a
+`devicetree` CMake package, and the exported `Emu68CommonConfig.cmake` no longer
+looks for one: consumers of `Emu68Common::common` need nothing extra.
 
 ## Improvements / fixes
 

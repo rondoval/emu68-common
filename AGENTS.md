@@ -16,7 +16,8 @@ trees are configured at `/work` inside the toolchain container), from the
 ./scripts/docker-build.sh --target emu68-common
 ```
 
-`devicetree.resource` must be installed first (the superbuild orders this).
+The `devicetree.resource` client headers (`<proto/devicetree.h>`) come with the toolchain
+image (amiga-build-container); there is no package to install first.
 
 ### Debug output backend (owned by this component)
 

@@ -45,8 +45,6 @@ static int check_rangeops(void)
 
 int main(int argc, char **argv)
 {
-    SysBase = *(struct ExecBase **)4UL;
-
     if (argc == 2)
     {
         if (_Stricmp((CONST_STRPTR)argv[1], (CONST_STRPTR) "RANGEOPS") == 0)

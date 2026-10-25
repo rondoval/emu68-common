@@ -55,6 +55,16 @@ queue's `timerequest` to it as the timeout: `timer.device` opens once, at the fi
 wait that sleeps, and `drv_waitq_cleanup()` closes it. Caller-owned state, ROM-safe.
 Moved here from the vchiq component (vchiq.device and videocore.codec use it).
 
+### `hw_claim.h`: one driver at a time on hardware without a PCI owner field
+
+`hw_claim_take(SysBase, &claim, name)` reserves hardware that has no owner field
+of its own (a PCI board has `PRM_BoardOwner`) by putting a public semaphore of that
+name on the system list; it fails while another driver holds the name.
+`hw_claim_release()` takes it off again and leaves a claim not held alone. Drivers
+for the same hardware - different binaries, from ROM or disk - agree only on the
+name; the devicetree node name serves. Caller-owned state, ROM-safe. Both xhci
+drivers use it for the onboard controller.
+
 ## Build & tooling
 
 ### SFD headers (`emu68_sfd_headers`)

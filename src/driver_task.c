@@ -105,15 +105,22 @@ void drv_task_join(struct ExecBase *SysBase, struct Task **slot)
     KprintfT("[drv] %s: stopping task=%lx\n", __func__, (ULONG)*slot);
 
     /* The task clears *slot on its way out, so the join is a poll. A timer paces
-     * it; without one the poll still terminates, just hot. */
+     * it, from 1 ms doubling to 250 ms: a caller under Forbid() (a library's
+     * close) lets the task run only by waiting, and a task that exits at once
+     * is then seen after a millisecond, not a quarter second. Without a timer
+     * the poll still terminates, just hot. */
     struct drv_timer pacer;
     BOOL haveTimer = drv_timer_open(&pacer, SysBase);
+    ULONG pace_ms = 1;
 
     Signal(*slot, SIGBREAKF_CTRL_C);
     while (*slot != NULL)
     {
         if (haveTimer)
-            drv_timer_sleep_ms(&pacer, 250);
+        {
+            drv_timer_sleep_ms(&pacer, pace_ms);
+            pace_ms = pace_ms < 128 ? pace_ms * 2 : 250;
+        }
     }
 
     SetSignal(0UL, SIGBREAKF_CTRL_F | SIGBREAKF_CTRL_C);

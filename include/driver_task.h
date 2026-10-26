@@ -41,8 +41,8 @@ s32 drv_task_spawn(struct ExecBase *SysBase, APTR ctx, APTR entry, const char *n
 
 /*
  * Signal SIGBREAKF_CTRL_C to *slot and wait for the entry to clear it, paced by
- * a 250 ms timer.device poll (a busy-poll if timer.device will not open). A NULL
- * or already-clear slot returns at once.
+ * a timer.device poll from 1 ms doubling to 250 ms (a busy-poll if timer.device
+ * will not open). A NULL or already-clear slot returns at once.
  */
 void drv_task_join(struct ExecBase *SysBase, struct Task **slot);
 

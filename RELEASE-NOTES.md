@@ -67,6 +67,17 @@ drivers use it for the onboard controller.
 
 ## Build & tooling
 
+### `emu68check BSDSOCKET`, `OPENPCI` and `LSPCI`: whose file is installed
+
+The installer probe gains three queries. Each reads an installed file, without loading
+it, and returns 0 when it is the stack's own, 5 when it is another one and 10 when there
+is none. `BSDSOCKET` looks for lwip-amiga's `lwip-amiga x.y` release string in
+`LIBS:bsdsocket.library`; the driver stack's installer uses it to skip the "replace your
+stack?" question on an update and to default the TCP/IP choice to what is installed.
+`OPENPCI` and `LSPCI` look for `bcmpcie` in `LIBS:openpci.library` and `C:lspci`, which
+only the stack's own builds open; the installer asks before replacing another one (a
+real PCI board's).
+
 ### SFD headers (`emu68_sfd_headers`)
 
 `emu68_sfd_headers(<target> [ALL] OUTPUT_DIR <dir> SFD <file>…)` generates the

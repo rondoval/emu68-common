@@ -46,6 +46,9 @@ The inline fast path needs an Emu68 with the dcache extensions, which advertises
 A small hosted CLI probe the driver stack's Install script runs from the extracted archive (it is never copied to `C:`). Query-only — all answers are return codes aligned with dos `RETURN_*`:
 
 - `emu68check RANGEOPS` — 0: the firmware has the dcache extensions (`/emu68` `dcache-range-ops` revision 1); 5: running under Emu68 without them; 10: no `devicetree.resource` (not under Emu68 at all).
+- `emu68check BSDSOCKET` — 0: `LIBS:bsdsocket.library` is lwip-amiga's (it carries the `lwip-amiga x.y` release string); 5: another stack's; 10: there is none. The file is read, never opened as a library.
+- `emu68check OPENPCI` — 0: `LIBS:openpci.library` is the stack's shim (it opens `bcmpcie.library`); 5: another one, most likely a real PCI board's; 10: there is none. Read the same way.
+- `emu68check LSPCI` — the same for `C:lspci`.
 - No/bad arguments: usage text, RC 20.
 
 ## Utility headers

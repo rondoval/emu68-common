@@ -38,6 +38,14 @@ memory carve-outs, the `<base size>` properties of `/emu68` (`vc4-mem`,
 `unicam-mem`). It fails when Emu68 does not set that one. (The uncached CMA block
 is a node of its own, `/emu68/cma`, with its allocator in `cma.resource`.)
 
+### `dma_mem.h`: give large arenas back (`dma_pool_shrink`)
+
+`dma_pool_shrink(pool)` returns to Exec every arena grown for one large request
+that is empty again. A pool keeps its arenas otherwise, and as sizes change a
+small request splits a large arena and the next large request grows a new one.
+It is a call, not automatic: only a driver whose large buffers come and go wants
+it, and nothing changes for the others.
+
 ### `bits.h`: `ARRAY_SIZE`, `CONTAINER_OF`, `umin`/`umax`
 
 `ARRAY_SIZE(a)` counts an array's elements, `CONTAINER_OF(pointer, type, member)`

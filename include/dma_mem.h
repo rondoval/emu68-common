@@ -82,6 +82,9 @@ struct dma_pool;
  * from Emu68 RAM).  @ctx must outlive the pool.  Returns NULL if no region. */
 struct dma_pool *dma_pool_create(struct dma_mem_ctx *ctx);
 void dma_pool_delete(struct dma_pool *pool);
+/* Give back the arenas grown for single large requests that are empty again.  Not
+ * automatic: a driver with large buffers on its I/O path keeps them for the next one. */
+void dma_pool_shrink(struct dma_pool *pool);
 
 /* --- Region sub-allocator (raw); prefer the dma_alloc/dma_zalloc/dma_free helpers
  *     below, which add the cache-line alignment + size bookkeeping. --- */

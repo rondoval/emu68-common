@@ -21,6 +21,7 @@ On PiStorm/Emu68 only Emu68 Fast RAM — the Pi's own DRAM, advertised in the de
 - `dma_addr_reachable(ctx, addr, len)` — transport-agnostic predicate (PCIe and on-SoC genet alike) for bounce-buffer decisions. Returns `TRUE` only when `[addr, addr+len)` lies entirely within Emu68 RAM; fails safe (caller bounces) when `ctx` is `NULL` or no regions were found.
 - `dma_pool_create(ctx)` / `dma_pool_delete(pool)` — a region-restricted `struct dma_pool` that *always* allocates from Emu68 RAM, so persistent DMA structures and bounce buffers stay reachable even under Emu68-RAM pressure. `ctx` must outlive the pool.
 - `dma_alloc(pool, align, size)` / `dma_zalloc(...)` / `dma_free(pool, ptr)` — DMA-buffer allocation from a region pool. Cache-line-aligned (or coarser) requests are rounded up so the buffer owns whole cache lines at both ends.
+- `dma_pool_shrink(pool)` — give back the arenas grown for single large requests that are empty again, for a driver whose large buffers come and go. A pool otherwise keeps every arena until it is deleted.
 
 A `struct dma_pool *` handle is valid only for the `dma_alloc`/`dma_zalloc`/`dma_free` family. CPU-only metadata should use an ordinary Exec pool (`pool_alloc`/`pool_free` from `memory.h`).
 

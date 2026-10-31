@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 2.1.0 LANGUAGES C ASM)
+project(common VERSION 2.2.0 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 if(EMU68_BUILD_STAMP)   # local-build marker from the stack's build.sh; empty in releases
     string(APPEND CURRENT_DATE " ${EMU68_BUILD_STAMP}")

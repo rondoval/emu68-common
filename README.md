@@ -144,8 +144,10 @@ add_dependencies(foo_library foo_sfd_headers)
 `SFD` takes several files; each one's headers are named after the file
 without `.sfd` and without the NDK's `_lib` suffix (`exec_lib.sfd`
 gives `proto/exec.h`). `ALL` builds them with the default target;
-without it, only for whatever depends on the target. The module finds sfdc
-itself (`/opt/m68k-amigaos/bin` in the build container).
+without it, only for whatever depends on the target. `FD_DIR <dir>` also
+generates each SFD's FD file there, `<base>_lib.fd` as in the NDK, for a
+library that ships one. The module finds sfdc itself
+(`/opt/m68k-amigaos/bin` in the build container).
 
 ### Cache-ops LVO fallback
 

@@ -1,3 +1,16 @@
+# Release notes - emu68-common 2.2.0
+
+Changes since 2.1.0.
+
+---
+
+## New features (new APIs / build)
+
+- `emu68_sfd_headers()` takes `FD_DIR <dir>`: it then also generates each SFD's
+  FD file there, `<base>_lib.fd` as in the NDK. Without it nothing changes.
+
+---
+
 # Release notes - emu68-common 2.1.0
 
 Changes since 2.0.0.

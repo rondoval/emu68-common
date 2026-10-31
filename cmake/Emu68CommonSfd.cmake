@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 #
-# emu68_sfd_headers(<target> OUTPUT_DIR <dir> SFD <file>... [ALL]) - generate the
-# clib/inline/pragmas/proto headers of each SFD into <dir> and make <target> the custom
-# target that builds them.  Add <dir> to the include path and add_dependencies() on
-# <target> wherever the headers are used.
+# emu68_sfd_headers(<target> OUTPUT_DIR <dir> SFD <file>... [FD_DIR <dir>] [ALL]) - generate
+# the clib/inline/pragmas/proto headers of each SFD into OUTPUT_DIR and make <target> the
+# custom target that builds them.  Add OUTPUT_DIR to the include path and add_dependencies()
+# on <target> wherever the headers are used.
 #
 # The header base name is the SFD's file name without ".sfd" and without the NDK's
 # "_lib" suffix: exec_lib.sfd gives proto/exec.h, bcmpcie.sfd gives proto/bcmpcie.h.
+#
+# FD_DIR also generates each SFD's FD file there.  It is <base>_lib.fd whatever the SFD is
+# called, the NDK's name and the one tools looking in FD: rely on.
 #
 # ALL builds <target> with the default target (a library that installs the headers);
 # without it they are built only when something depends on <target>.
@@ -25,7 +28,7 @@ set(_EMU68_SFD_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/Emu68CommonSfdScript.cmake"
 	CACHE INTERNAL "emu68_sfd_headers sfdc runner")
 
 function(emu68_sfd_headers target)
-	cmake_parse_arguments(ARG "ALL" "OUTPUT_DIR" "SFD" ${ARGN})
+	cmake_parse_arguments(ARG "ALL" "OUTPUT_DIR;FD_DIR" "SFD" ${ARGN})
 	if(NOT ARG_OUTPUT_DIR OR NOT ARG_SFD)
 		message(FATAL_ERROR "emu68_sfd_headers(${target}): OUTPUT_DIR and SFD are required")
 	endif()
@@ -33,33 +36,37 @@ function(emu68_sfd_headers target)
 		message(FATAL_ERROR "emu68_sfd_headers(${target}): sfdc not found")
 	endif()
 
-	set(all_headers)
+	set(all_outputs)
 	foreach(sfd IN LISTS ARG_SFD)
 		get_filename_component(base "${sfd}" NAME_WE)
 		string(REGEX REPLACE "_lib$" "" base "${base}")
-		set(headers
+		set(outputs
 			${ARG_OUTPUT_DIR}/clib/${base}_protos.h
 			${ARG_OUTPUT_DIR}/inline/${base}.h
 			${ARG_OUTPUT_DIR}/pragmas/${base}_pragmas.h
 			${ARG_OUTPUT_DIR}/proto/${base}.h
 		)
+		if(ARG_FD_DIR)
+			list(APPEND outputs ${ARG_FD_DIR}/${base}_lib.fd)
+		endif()
 		add_custom_command(
-			OUTPUT ${headers}
+			OUTPUT ${outputs}
 			COMMAND ${CMAKE_COMMAND}
 				-DSFDC_EXECUTABLE=${SFDC_EXECUTABLE}
 				-DSFD_FILE=${sfd}
 				-DOUTPUT_DIR=${ARG_OUTPUT_DIR}
 				-DOUTPUT_BASENAME=${base}
+				-DFD_DIR=${ARG_FD_DIR}
 				-P ${_EMU68_SFD_SCRIPT}
 			DEPENDS ${sfd} ${_EMU68_SFD_SCRIPT}
 			VERBATIM
 		)
-		list(APPEND all_headers ${headers})
+		list(APPEND all_outputs ${outputs})
 	endforeach()
 
 	if(ARG_ALL)
-		add_custom_target(${target} ALL DEPENDS ${all_headers})
+		add_custom_target(${target} ALL DEPENDS ${all_outputs})
 	else()
-		add_custom_target(${target} DEPENDS ${all_headers})
+		add_custom_target(${target} DEPENDS ${all_outputs})
 	endif()
 endfunction()

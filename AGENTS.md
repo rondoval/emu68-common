@@ -50,7 +50,7 @@ submodule).  ROM-ability is not part of this module: it is an `ASSERT` in
 
 SFD header generation is `emu68_sfd_headers()` (`cmake/Emu68CommonSfd.cmake`,
 with the sfdc runner `cmake/Emu68CommonSfdScript.cmake`); components call it
-instead of carrying their own copy of the script.
+instead of carrying their own copy of the script.  `FD_DIR` adds the FD file.
 
 Note: `debug.h` includes `<proto/exec.h>` only under `DEBUG_SINK`; sources
 that call exec functions must include it themselves (the `#define

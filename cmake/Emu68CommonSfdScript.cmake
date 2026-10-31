@@ -2,7 +2,8 @@
 #
 # Script mode (cmake -P), run by emu68_sfd_headers() at build time: sfdc turns one SFD
 # into clib/<base>_protos.h, inline/<base>.h, pragmas/<base>_pragmas.h and proto/<base>.h
-# under OUTPUT_DIR.  Inputs: SFDC_EXECUTABLE, SFD_FILE, OUTPUT_DIR, OUTPUT_BASENAME.
+# under OUTPUT_DIR, and into <base>_lib.fd under FD_DIR if that is not empty.
+# Inputs: SFDC_EXECUTABLE, SFD_FILE, OUTPUT_DIR, OUTPUT_BASENAME, FD_DIR.
 
 if(NOT DEFINED SFDC_EXECUTABLE)
     message(FATAL_ERROR "SFDC_EXECUTABLE is required")
@@ -41,3 +42,8 @@ generate_sfd_header(clib ${OUTPUT_DIR}/clib/${OUTPUT_BASENAME}_protos.h)
 generate_sfd_header(macros ${OUTPUT_DIR}/inline/${OUTPUT_BASENAME}.h)
 generate_sfd_header(pragmas ${OUTPUT_DIR}/pragmas/${OUTPUT_BASENAME}_pragmas.h)
 generate_sfd_header(proto ${OUTPUT_DIR}/proto/${OUTPUT_BASENAME}.h)
+
+if(FD_DIR)
+    file(MAKE_DIRECTORY ${FD_DIR})
+    generate_sfd_header(fd ${FD_DIR}/${OUTPUT_BASENAME}_lib.fd)
+endif()

@@ -4,6 +4,7 @@
 
 - `emu68-common` is the shared support library for the stack: debug output, GPIO helpers, the DMA-memory facility, a reset guard, byteorder/MMIO accessors, timing, devicetree wrappers, minlist/string/format helpers.
 - Also builds the hosted `emu68check` CLI tool (`tools/`), installed to `C/` — run by the stack's Install script from the archive, not a user-facing command.
+- `tools/memcheck.c` proves `memmove` on m68k, byte for byte, and is not installed. Run it after any change to the memory primitives, on an Amiga to include the JIT: a host test only exercises the host's own `memmove`.
 - Changes here can affect multiple downstream repos, so prefer validating through `emu68-driver-stack` if public headers or shared helper semantics change.
 
 ## Build
@@ -64,7 +65,7 @@ __NOLIBBASE__` / `EXEC_BASE_NAME (*(struct ExecBase**)4UL)` idiom).
 | `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property) and `emu68_has_dcache_range_ops()` (the driver init gate; folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`) |
 | `dma_mem.h` | DMA-memory facility: `dma_mem_init` / `dma_addr_reachable` (bounce-buffer predicate) and a region-restricted `dma_pool` (`dma_pool_create`/`dma_alloc`/`dma_zalloc`/`dma_free`) that always allocates from DMA-reachable Emu68 RAM |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init`/alloc/free), optionally backed by a `dma_mem` pool for DMA-reachable objects |
-| `memory.h` | Exec pool helpers (`pool_alloc`/`pool_zalloc`/`pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree (implemented in `memory.c`; `memset` is asm-optimised, `memcpy`/`memmove` route through Exec `CopyMem`) |
+| `memory.h` | Exec pool helpers (`pool_alloc`/`pool_zalloc`/`pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree (`memcmp` in `memory.c`, the others asm: `memcpy_movem.S`, `memmove_movem.S`, `memset_movem.S`). `memcpy` is not overlap-safe in either direction |
 | `perf.h` | Instance-based per-stage timing (`PERF_T0`/`PERF_ADD` probes, `perf_report()` delta lines) and value histograms (`struct perf_hist`, `PERF_HIST_ADD`/`perf_hist_report()`); embed the counters in the caller's context (ROM-able, no globals); probes compile out below the `PROFILE` tier while the storage stays. Reduce captures with `scripts/perf-report.py` — it parses the timing grammar only and ignores the `hist` lines |
 | `reset_guard.h` | `reset_guard_install`/`reset_guard_remove` — run a driver "prepare for reset" callback before the Amiga resets (Ctrl-A-A warning and `ColdReboot()`) |
 | `hw_claim.h` | `hw_claim_take`/`hw_claim_release` — one driver at a time on hardware without a PCI owner field, by a public semaphore named after it (the devicetree node name) |

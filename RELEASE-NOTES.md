@@ -1,3 +1,25 @@
+# Release notes - emu68-common 2.2.1
+
+Changes since 2.2.0.
+
+---
+
+## Fixes
+
+- **`memmove` no longer damages data moved down by less than 64 bytes.** A few
+  bytes near the end of the move could come out wrong, depending on the length
+  and the distance. Any program built against an earlier version keeps the
+  fault until it is rebuilt.
+
+## Performance
+
+- **`memmove` is much faster moving overlapping data up in memory**, as it now
+  moves longwords and `movem.l` blocks at any alignment: 1 MiB moved up by a few
+  bytes takes 0.18 ms, where a distance that was not a multiple of four took
+  5.9 ms, a byte at a time. Short moves cost about what `memcpy` does.
+
+---
+
 # Release notes - emu68-common 2.2.0
 
 Changes since 2.1.0.

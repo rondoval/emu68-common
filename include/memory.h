@@ -9,11 +9,11 @@
 #include <proto/exec.h>
 
 /* Freestanding C runtime memory primitives (memory.c, memset_movem.S,
- * memcpy_movem.S).  These are the symbols GCC may synthesise at -O3 in this
- * -nostdlib tree.  memset and memcpy are asm: a longword loop for short sizes,
- * movem.l blocks for long ones (any alignment, 68020+; no Exec call, so they
- * are callable from interrupts and from SANA-II copy hooks, and ROM-safe);
- * memmove forwards to memcpy or copies descending, with the same guarantee.
+ * memcpy_movem.S, memmove_movem.S).  These are the symbols GCC may synthesise
+ * at -O3 in this -nostdlib tree.  memset, memcpy and memmove are asm: a longword
+ * loop for short sizes, movem.l blocks for long ones (any alignment, 68020+; no
+ * Exec call, so they are callable from interrupts and from SANA-II copy hooks,
+ * and ROM-safe).  memcpy takes regions apart only, in either direction.
  * Signatures match the compiler builtins so call sites in builtin-enabled TUs
  * may still be optimised (e.g. a constant-size memset(&x, 0, sizeof x) inlined
  * directly).

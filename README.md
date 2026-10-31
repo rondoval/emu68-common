@@ -42,6 +42,10 @@ A buffer the device writes needs both ops — clean+invalidate before it is arme
 
 The inline fast path needs an Emu68 with the dcache extensions, which advertises the opcode as the `/emu68` device-tree property `dcache-range-ops`; drivers built for it gate device init on `emu68_has_dcache_range_ops()` (`emu68_features.h`) and refuse to load on firmware without it. Set `EMU68_FORCE_LVO_CACHE_OPS` (see *Cache-ops LVO fallback* below) to route through the plain exec LVO calls instead, which run on any Emu68 release.
 
+## memcheck (`tools/`)
+
+Proves `memmove` byte for byte on m68k: every length to 300 with every gap to 140 either way, at each alignment, then long moves around the block sizes. Not installed. Copy it to an Amiga to include the JIT, or run it on the host with `vamos -C 68040 -m 4096 memcheck`. RC 0 when everything held, else RC 10 and the first failure.
+
 ## emu68check (`tools/`)
 
 A small hosted CLI probe the driver stack's Install script runs from the extracted archive (it is never copied to `C:`). Query-only — all answers are return codes aligned with dos `RETURN_*`:
@@ -67,7 +71,7 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (the raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property, revision 1 — also tells "not under Emu68" apart from "capability absent"; callable anywhere, used by `emu68check`) and `emu68_has_dcache_range_ops()` (the driver init gate — folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`; only the cache-ops consumer components may call the wrapper). |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
-| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. `memcpy`/`memset` are asm (`memcpy_movem.S`/`memset_movem.S`: longword loop for short sizes, `movem.l` blocks for long ones): any alignment, 68020+, no Exec call — interrupt-callable and ROM-safe; `memmove` shares the guarantee. |
+| `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. `memcpy`/`memmove`/`memset` are asm (`memcpy_movem.S`/`memmove_movem.S`/`memset_movem.S`: longword loop for short sizes, `movem.l` blocks for long ones): any alignment, 68020+, no Exec call — interrupt-callable and ROM-safe. |
 | `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence, in Forbid until the task is gone). |
 | `drv_waitq.h` | Wait for a condition guarded by a `SignalSemaphore`, with a timeout: `drv_wait_event` (sleeps with the lock released until a predicate holds), `drv_wake_up_all` (waiters re-check), `drv_waitq_init` / `drv_waitq_cleanup`. One `timer.device` open per queue; a wait that sleeps creates only a message port. Caller-owned state, ROM-safe. |
 | `hw_claim.h` | One driver at a time on hardware without a PCI owner field: `hw_claim_take` puts a public semaphore named after the hardware (a devicetree node name) on the system list and fails while another driver holds the name; `hw_claim_release` takes it off. Caller-owned state, ROM-safe. |

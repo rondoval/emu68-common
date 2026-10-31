@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 2.2.0 LANGUAGES C ASM)
+project(common VERSION 2.2.1 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 if(EMU68_BUILD_STAMP)   # local-build marker from the stack's build.sh; empty in releases
     string(APPEND CURRENT_DATE " ${EMU68_BUILD_STAMP}")
@@ -23,14 +23,14 @@ file(GLOB_RECURSE common_sources CONFIGURE_DEPENDS src/*.c src/*.S)
 add_library(common STATIC ${common_sources})
 
 # Freestanding C runtime memory primitives (memset/memcpy/memmove/memcmp) that
-# GCC may synthesise at -O3.  Compile their definitions with the loop-idiom and
-# builtin recognition disabled so the compiler does not rewrite, e.g., memmove()'s
-# own copy loop into a call to memmove() (infinite recursion).
+# GCC may synthesise at -O3.  Compile the C ones with the loop-idiom and builtin
+# recognition disabled so the compiler does not rewrite their own loops into
+# calls to themselves (infinite recursion).
 set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/memory.c PROPERTIES
 	COMPILE_OPTIONS "-fno-tree-loop-distribute-patterns;-fno-builtin")
 
 emu68_enable_lto(common)
-# memory.c stays a real object. GCC synthesises memmove/memcmp calls during ltrans
+# memory.c stays a real object. GCC synthesises memcmp calls during ltrans
 # codegen, after the IR phase has ended.  ld satisfies such a late reference out of
 # libcommon.a only when the member is a real object; an IR member can no longer be
 # compiled by then and the link ends in `undefined reference to memcmp'.

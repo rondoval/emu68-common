@@ -5,10 +5,12 @@
  *
  *   void *memcpy(void *dst, const void *src, __SIZE_TYPE__ n);
  *
- * Non-overlapping regions only (memmove guards the overlapping case). Makes
- * no Exec call and owns no writable data, so it is callable from interrupts
- * and from SANA-II copy hooks, and ROM-safe. 68020 or later: longword and
- * movem.l accesses may be misaligned from the 020 up.
+ * Non-overlapping regions only, in either direction: it ends by storing the
+ * last bytes again, read afresh from the source, which an overlapping copy has
+ * overwritten by then. memmove_movem.S is the one for regions that may overlap.
+ * Makes no Exec call and owns no writable data, so it is callable from
+ * interrupts and from SANA-II copy hooks, and ROM-safe. 68020 or later:
+ * longword and movem.l accesses may be misaligned from the 020 up.
  *
  * Shaped for the Emu68 JIT: a translated block
  * assumes forward branches not taken and short backward branches taken, and

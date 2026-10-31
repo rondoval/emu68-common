@@ -1,13 +1,10 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 2.0.0 LANGUAGES C ASM)
+project(common VERSION 2.1.0 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 if(EMU68_BUILD_STAMP)   # local-build marker from the stack's build.sh; empty in releases
     string(APPEND CURRENT_DATE " ${EMU68_BUILD_STAMP}")
 endif()
-
-# Dependencies
-find_package(devicetree CONFIG REQUIRED)
 
 # Debug sink + tier selection (shared by the whole stack).
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake)
@@ -64,11 +61,6 @@ target_include_directories(common
 		$<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(common
-	PUBLIC
-		devicetree::devicetree
-)
-
 add_subdirectory(tools)
 
 # Install targets
@@ -109,6 +101,8 @@ install(FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonLto.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonDebug.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonSfd.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonSfdScript.cmake
 	DESTINATION lib/cmake/Emu68Common
 )
 

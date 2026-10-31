@@ -11,6 +11,13 @@
 
 #define BIT(bit_index) (1UL << (bit_index))
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#endif
+
+/* The structure that holds @pointer as its @member */
+#define CONTAINER_OF(pointer, type, member) ((type *)((u8 *)(pointer) - __builtin_offsetof(type, member)))
+
 #define SZ_1M 0x00100000
 #define SZ_64M 0x04000000
 #define SZ_4G 0x100000000ULL
@@ -109,6 +116,16 @@ static inline s32 min(s32 a, s32 b)
 }
 
 static inline s32 max(s32 a, s32 b)
+{
+	return (a > b) ? a : b;
+}
+
+static inline u32 umin(u32 a, u32 b)
+{
+	return (a < b) ? a : b;
+}
+
+static inline u32 umax(u32 a, u32 b)
 {
 	return (a > b) ? a : b;
 }

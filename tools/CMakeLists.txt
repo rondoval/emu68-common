@@ -27,7 +27,7 @@ target_compile_definitions(emu68check PRIVATE
 target_link_options(emu68check PRIVATE -s)
 
 # In-tree target (not the exported Emu68Common::common): brings the include
-# dir and devicetree usage requirements, plus _Stricmp from strutil.
+# dir, plus _Stricmp from strutil.
 target_link_libraries(emu68check PRIVATE common)
 
 # Hosted CLI program: not ROMABLE, so no ROM check.

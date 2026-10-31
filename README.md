@@ -21,6 +21,7 @@ On PiStorm/Emu68 only Emu68 Fast RAM — the Pi's own DRAM, advertised in the de
 - `dma_addr_reachable(ctx, addr, len)` — transport-agnostic predicate (PCIe and on-SoC genet alike) for bounce-buffer decisions. Returns `TRUE` only when `[addr, addr+len)` lies entirely within Emu68 RAM; fails safe (caller bounces) when `ctx` is `NULL` or no regions were found.
 - `dma_pool_create(ctx)` / `dma_pool_delete(pool)` — a region-restricted `struct dma_pool` that *always* allocates from Emu68 RAM, so persistent DMA structures and bounce buffers stay reachable even under Emu68-RAM pressure. `ctx` must outlive the pool.
 - `dma_alloc(pool, align, size)` / `dma_zalloc(...)` / `dma_free(pool, ptr)` — DMA-buffer allocation from a region pool. Cache-line-aligned (or coarser) requests are rounded up so the buffer owns whole cache lines at both ends.
+- `dma_pool_shrink(pool)` — give back the arenas grown for single large requests that are empty again, for a driver whose large buffers come and go. A pool otherwise keeps every arena until it is deleted.
 
 A `struct dma_pool *` handle is valid only for the `dma_alloc`/`dma_zalloc`/`dma_free` family. CPU-only metadata should use an ordinary Exec pool (`pool_alloc`/`pool_free` from `memory.h`).
 
@@ -46,6 +47,9 @@ The inline fast path needs an Emu68 with the dcache extensions, which advertises
 A small hosted CLI probe the driver stack's Install script runs from the extracted archive (it is never copied to `C:`). Query-only — all answers are return codes aligned with dos `RETURN_*`:
 
 - `emu68check RANGEOPS` — 0: the firmware has the dcache extensions (`/emu68` `dcache-range-ops` revision 1); 5: running under Emu68 without them; 10: no `devicetree.resource` (not under Emu68 at all).
+- `emu68check BSDSOCKET` — 0: `LIBS:bsdsocket.library` is lwip-amiga's (it carries the `lwip-amiga x.y` release string); 5: another stack's; 10: there is none. The file is read, never opened as a library.
+- `emu68check OPENPCI` — 0: `LIBS:openpci.library` is the stack's shim (it opens `bcmpcie.library`); 5: another one, most likely a real PCI board's; 10: there is none. Read the same way.
+- `emu68check LSPCI` — the same for `C:lspci`.
 - No/bad arguments: usage text, RC 20.
 
 ## Utility headers
@@ -59,12 +63,14 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
 | `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
 | `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` (each followed by a barrier) plus read-modify-write helpers (`mmio_update/clear/set`), `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout), and the `mmio_read32_relaxed` / `mmio_write32_relaxed` pair without the barrier, for batches the caller closes with one explicit `emu68_barrier()`. |
-| `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: alias and phandle lookup, property/number reads, base-address resolution (`DT_GetBaseAddressVirtual`) and `DT_GetInterrupt`. The caller opens the resource and passes it in. |
+| `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: alias, symbol (`/__symbols__` label, `DT_OpenSymbol`) and phandle lookup, property/number reads, base-address resolution (`DT_GetBaseAddressVirtual`), DMA-address resolution through `dma-ranges` (`DT_GetDmaAddress`, `DT_GetDmaWindow` with the reachable range), Emu68 carve-outs (`DT_GetEmu68Range`) and `DT_GetInterrupt`. The caller opens the resource and passes it in. |
 | `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (the raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property, revision 1 — also tells "not under Emu68" apart from "capability absent"; callable anywhere, used by `emu68check`) and `emu68_has_dcache_range_ops()` (the driver init gate — folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`; only the cache-ops consumer components may call the wrapper). |
 | `bcm_gpio.h` | BCM2711 GPIO helpers — set pull, alternate function, and output level. |
 | `timing.h` | Busy-wait timing: `get_time()`, `delay_us()` / `delay_ms()`, and `time_deadline_passed()`. |
 | `memory.h` | Exec pool helpers (`pool_alloc` / `pool_zalloc` / `pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at higher optimization levels in this `-nostdlib` tree. `memcpy`/`memset` are asm (`memcpy_movem.S`/`memset_movem.S`: longword loop for short sizes, `movem.l` blocks for long ones): any alignment, 68020+, no Exec call — interrupt-callable and ROM-safe; `memmove` shares the guarantee. |
-| `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence). |
+| `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence, in Forbid until the task is gone). |
+| `drv_waitq.h` | Wait for a condition guarded by a `SignalSemaphore`, with a timeout: `drv_wait_event` (sleeps with the lock released until a predicate holds), `drv_wake_up_all` (waiters re-check), `drv_waitq_init` / `drv_waitq_cleanup`. One `timer.device` open per queue; a wait that sleeps creates only a message port. Caller-owned state, ROM-safe. |
+| `hw_claim.h` | One driver at a time on hardware without a PCI owner field: `hw_claim_take` puts a public semaphore named after the hardware (a devicetree node name) on the system list and fails while another driver holds the name; `hw_claim_release` takes it off. Caller-owned state, ROM-safe. |
 | `drv_timer.h` | A `timer.device` (MICROHZ) instance held open across a burst of waits — one `drv_timer_open()` serves many synchronous sleeps (`drv_timer_sleep_ms`) or periodic arms (`drv_timer_arm_ms` / `drv_timer_consume` / `drv_timer_sigmask`), instead of the open/close dance per wait. Caller-owned state, ROM-safe. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
 | `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines) plus value histograms (`struct perf_hist`, `PERF_HIST_ADD` / `perf_hist_report`) for distributions an average would hide. Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`, which reads the timing lines and skips the histogram ones. |
@@ -76,24 +82,22 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 
 ## Dependencies
 
-- `devicetree.resource`
+- the `devicetree.resource` client headers (`<proto/devicetree.h>`), shipped by the toolchain
+  image (amiga-build-container) on the compiler's default include path
 
 ## Building
 
 Use Bebbo's GCC cross compiler and CMake.
 
-Recommended workflow: install dependencies and this package into one shared prefix.
+Recommended workflow: install this package into the stack's shared prefix.
 
 ```sh
 cmake -S . -B build \
   -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain.cmake \
-  -DCMAKE_PREFIX_PATH=/path/to/emu68-driver-stack \
   -DCMAKE_INSTALL_PREFIX=/path/to/emu68-driver-stack
 cmake --build build
 cmake --install build
 ```
-
-If you keep dependencies in separate install trees, point `CMAKE_PREFIX_PATH` at the `devicetree.resource` install prefix instead.
 
 ### Debug output backend and tiers
 
@@ -123,6 +127,25 @@ The module exports `emu68_debug_definitions()` and the
 `emu68_tier_at_least(<out> <rung>)` predicate, which downstream components call
 instead of hardcoding `-DDEBUG`.  (ROM-ability is no longer part of this module:
 it is an `ASSERT` in `ldscripts/module.lds`, applied by `emu68_module_layout()`.)
+
+### SFD headers
+
+Libraries generate their `clib/`, `inline/`, `pragmas/` and `proto/` headers
+from an SFD with sfdc through the installed `cmake/Emu68CommonSfd.cmake`
+module, loaded by `find_package(Emu68Common)`:
+
+```cmake
+emu68_sfd_headers(foo_sfd_headers ALL
+    OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/include
+    SFD ${CMAKE_CURRENT_SOURCE_DIR}/sfd/foo.sfd)
+add_dependencies(foo_library foo_sfd_headers)
+```
+
+`SFD` takes several files; each one's headers are named after the file
+without `.sfd` and without the NDK's `_lib` suffix (`exec_lib.sfd`
+gives `proto/exec.h`). `ALL` builds them with the default target;
+without it, only for whatever depends on the target. The module finds sfdc
+itself (`/opt/m68k-amigaos/bin` in the build container).
 
 ### Cache-ops LVO fallback
 

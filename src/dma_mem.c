@@ -263,6 +263,32 @@ void dma_pool_region_free(struct dma_pool *pool, APTR ptr, ULONG size)
 	Kprintf("[dma_mem] region_free: %08lx not from this pool\n", a);
 }
 
+/* First fit puts a small request in any arena with room, so arenas grown for
+ * large requests would pile up as sizes change.  A pool whose large requests
+ * come and go calls this once they are freed; the standard puddles stay. */
+void dma_pool_shrink(struct dma_pool *pool)
+{
+	if (pool == NULL)
+		return;
+	struct ExecBase *SysBase = pool->sysBase;
+
+	Forbid();
+	struct dma_puddle **link = &pool->puddles;
+	while (*link != NULL)
+	{
+		struct dma_puddle *pud = *link;
+		if (pud->arena_size > pool->puddle_size && pud->mh.mh_Free == pud->arena_size)
+		{
+			*link = pud->next;
+			Deallocate(pud->src, pud->arena, pud->arena_size);
+			FreeMem(pud, sizeof(*pud));
+		}
+		else
+			link = &pud->next;
+	}
+	Permit();
+}
+
 struct dma_pool *dma_pool_create(struct dma_mem_ctx *ctx)
 {
 	if (ctx == NULL || ctx->count == 0)

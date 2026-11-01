@@ -46,6 +46,10 @@ The inline fast path needs an Emu68 with the dcache extensions, which advertises
 
 Proves `memmove` byte for byte on m68k: every length to 300 with every gap to 140 either way, at each alignment, then long moves around the block sizes. Not installed. Copy it to an Amiga to include the JIT, or run it on the host with `vamos -C 68040 -m 4096 memcheck`. RC 0 when everything held, else RC 10 and the first failure.
 
+## prefscheck (`tools/`)
+
+Proves `prefs.h` and `strfit()` on m68k: what each value comes to, the ends of a number's range, a real file read a line at a time, and that a bare Task gets nothing. Not installed. Runs on an Amiga, or on the host with `vamos -C 68040 -m 4096 prefscheck`. RC 0 when everything held, else RC 10 and each failure.
+
 ## emu68check (`tools/`)
 
 A small hosted CLI probe the driver stack's Install script runs from the extracted archive (it is never copied to `C:`). Query-only — all answers are return codes aligned with dos `RETURN_*`:
@@ -75,10 +79,11 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 | `driver_task.h` | Task lifecycle helpers: `drv_task_spawn` / `drv_task_join` (spawn a worker task, join it via a polled liveness slot), `drv_unit_msgport_init` (wire a `Unit`'s embedded message port for the owning task), and `drv_task_exit` (the canonical clear-slot-then-signal-parent exit sequence, in Forbid until the task is gone). |
 | `drv_waitq.h` | Wait for a condition guarded by a `SignalSemaphore`, with a timeout: `drv_wait_event` (sleeps with the lock released until a predicate holds), `drv_wake_up_all` (waiters re-check), `drv_waitq_init` / `drv_waitq_cleanup`. One `timer.device` open per queue; a wait that sleeps creates only a message port. Caller-owned state, ROM-safe. |
 | `hw_claim.h` | One driver at a time on hardware without a PCI owner field: `hw_claim_take` puts a public semaphore named after the hardware (a devicetree node name) on the system list and fails while another driver holds the name; `hw_claim_release` takes it off. Caller-owned state, ROM-safe. |
-| `drv_timer.h` | A `timer.device` (MICROHZ) instance held open across a burst of waits — one `drv_timer_open()` serves many synchronous sleeps (`drv_timer_sleep_ms`) or periodic arms (`drv_timer_arm_ms` / `drv_timer_consume` / `drv_timer_sigmask`), instead of the open/close dance per wait. Caller-owned state, ROM-safe. |
+| `drv_timer.h` | A `timer.device` (MICROHZ) instance held open across a burst of waits — one `drv_timer_open()` serves many synchronous sleeps (`drv_timer_sleep_ms`) or periodic arms (`drv_timer_arm_ms` / `drv_timer_consume` / `drv_timer_sigmask`), or waits for a signal with a timeout (`drv_timer_wait`), instead of the open/close dance per wait. Caller-owned state, ROM-safe. |
 | `slab.h` | Fixed-size object slab allocator (`slab_cache_init` / alloc / free), optionally backed by a `dma_mem` pool for DMA-reachable objects. |
 | `perf.h` | Per-stage timing samples (`PERF_T0` / `PERF_ADD` probes over 1 MHz `get_time()`, `perf_report()` delta lines) plus value histograms (`struct perf_hist`, `PERF_HIST_ADD` / `perf_hist_report`) for distributions an average would hide. Instance-based — embed the counters in the unit/device context (ROM-able, no globals); probes compile out below the `PROFILE` tier. Reduce captures with `scripts/perf-report.py`, which reads the timing lines and skips the histogram ones. |
-| `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`) plus standard `strncmp()`/`strlen()`/`strlcpy()` for third-party code. |
+| `strutil.h` | Case-bounded string compares (`_Stricmp`, `_Strnicmp`), standard `strncmp()`/`strlen()`/`strlcpy()` for third-party code, and `strfit()`, which copies a string whole or not at all. |
+| `prefs.h` | `ENV:*.prefs` files of `KEY = VALUE` lines: `prefs_open` / `prefs_next` / `prefs_close` read one a setting at a time from any Process, opening `dos.library` themselves; `prefs_split` cuts a line; `prefs_bool` and `prefs_number` read a value. Everything but the file calls is ROM-safe. |
 | `format.h` | The stack's printf engine: C argument rules (every argument 32-bit, `%d`/`%u`/`%x`/`%p`/`%s`/`%c`, width, precision), no Exec call — interrupt-safe, ROM-safe, no `SysBase`. Streaming front ends `fmt_vformat` (va_list) and `fmt_aformat` (array of 32-bit cells), and the bounded `_SNPrintf` / `_VSNPrintf` / `_SNPrintfArgs` with C `snprintf` semantics. |
 | `debug.h` | Debug logging, one printer per tier (`KprintfP`/`Kprintf`/`KprintfT`, plus `KASSERT` and the shared `PrintPistorm` formatter). Formats with `fmt_vformat` (C argument rules, no Exec). Output sink set by `EMU68_DEBUG_BACKEND` (`pistorm` → `0xdeadbeef` Emu68 trap; `serial` → Exec `RawPutChar`, the `kprintf` path); compiled out for `off`. See *Debug output backend and tiers*. |
 | `errors.h` | `errno`-style codes (`EINVAL`, `EIO`, `ETIMEDOUT`, `ENOMEM`, …) used by the ported hardware code. |

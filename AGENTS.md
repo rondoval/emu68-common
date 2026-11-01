@@ -5,6 +5,7 @@
 - `emu68-common` is the shared support library for the stack: debug output, GPIO helpers, the DMA-memory facility, a reset guard, byteorder/MMIO accessors, timing, devicetree wrappers, minlist/string/format helpers.
 - Also builds the hosted `emu68check` CLI tool (`tools/`), installed to `C/` — run by the stack's Install script from the archive, not a user-facing command.
 - `tools/memcheck.c` proves `memmove` on m68k, byte for byte, and is not installed. Run it after any change to the memory primitives, on an Amiga to include the JIT: a host test only exercises the host's own `memmove`.
+- `tools/prefscheck.c` does the same for `prefs.h` and `strfit()`, also not installed. Run it after changing them; vamos is enough, as nothing there depends on the JIT.
 - Changes here can affect multiple downstream repos, so prefer validating through `emu68-driver-stack` if public headers or shared helper semantics change.
 
 ## Build
@@ -73,7 +74,8 @@ __NOLIBBASE__` / `EXEC_BASE_NAME (*(struct ExecBase**)4UL)` idiom).
 | `devtree.h` | Thin wrappers around `devicetree.resource` API |
 | `bcm_gpio.h` | BCM2711 GPIO helpers (set pull, alternate function, output level) |
 | `types.h`, `bits.h`, `byteorder.h`, `timing.h` | Fixed-width/`__le` types + branch hints, bit/alignment ops, endian conversion, busy-wait delay primitives |
-| `errors.h`, `minlist.h`, `strutil.h`, `format.h` | `errno`-style codes, `_NewMinList`, bounded string compares plus standard `strncmp`/`strlen`/`strlcpy`, `_SNPrintf`/`_VSNPrintf` |
+| `errors.h`, `minlist.h`, `strutil.h`, `format.h` | `errno`-style codes, `_NewMinList`, bounded string compares plus standard `strncmp`/`strlen`/`strlcpy` and `strfit`, `_SNPrintf`/`_VSNPrintf` |
+| `prefs.h` | `ENV:*.prefs` files: `prefs_open`/`prefs_next`/`prefs_close` (`prefs_file.c`, the only part that needs `dos.library`), `prefs_split`, `prefs_bool`, `prefs_number` (`prefs.c`, pure strings). New settings readers use these, not their own loop |
 
 ## Code Handling
 

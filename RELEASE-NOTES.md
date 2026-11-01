@@ -1,3 +1,36 @@
+# Release notes - emu68-common 2.3.0
+
+Changes since 2.2.1.
+
+---
+
+## New features (new APIs / build)
+
+- **`prefs.h` now reads a whole prefs file.** `prefs_open()`, `prefs_next()` and
+  `prefs_close()` go through an `ENV:` file a setting at a time, opening
+  `dos.library` themselves, so a driver needs no base of its own. `prefs_open()`
+  refuses a bare Task, which cannot use `dos.library`.
+- **`prefs_bool()` and `prefs_number()` read a value.** `prefs_bool()` takes on,
+  yes, true, 1 and off, no, false, 0 in any case. `prefs_number()` takes a whole
+  decimal number within a range, so `12abc` and a number too big for a `LONG`
+  are refused, where `StrToLong()` accepts the first and reports -1, which is
+  true, for no number at all.
+- **`strfit()` in `strutil.h`** copies a string whole or not at all, for values
+  such as file names, where a first part cut off is a different name.
+- **`drv_timer_wait()` sleeps until a signal or a timeout** on a timer held
+  open, and always collects its request.
+- `tools/prefscheck.c` proves all of this on m68k, as `memcheck` does for
+  `memmove`. It is not installed.
+
+## Fixes
+
+- **`drv_timer_cancel()` clears the timer's signal.** Cancelling replies the
+  request, and that signal stayed set, so the next wait on the same timer could
+  take it for its own timeout. Code that clears it by hand after a cancel can
+  stop doing so.
+
+---
+
 # Release notes - emu68-common 2.2.1
 
 Changes since 2.2.0.

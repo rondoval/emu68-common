@@ -96,6 +96,14 @@ __SIZE_TYPE__ strlcpy(char *dst, const char *src, __SIZE_TYPE__ size)
 	return srclen;
 }
 
+BOOL strfit(char *dst, const char *src, __SIZE_TYPE__ size)
+{
+	if (strlen(src) >= size)
+		return FALSE;
+	strlcpy(dst, src, size);
+	return TRUE;
+}
+
 LONG _Strnicmp(CONST_STRPTR s1, CONST_STRPTR s2, LONG len)
 {
 	if (len <= 0)

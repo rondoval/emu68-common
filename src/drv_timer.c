@@ -94,4 +94,17 @@ void drv_timer_cancel(struct drv_timer *t)
 		return;
 	AbortIO((struct IORequest *)t->req);
 	WaitIO((struct IORequest *)t->req);
+	SetSignal(0, drv_timer_sigmask(t)); /* the reply's: WaitIO() takes the message, not the signal */
+}
+
+ULONG drv_timer_wait(struct drv_timer *t, ULONG mask, ULONG ms)
+{
+	struct ExecBase *SysBase = t->sysBase;
+	if (!t->req)
+		return 0;
+
+	drv_timer_arm_ms(t, ms != 0 ? ms : 1u);
+	ULONG seen = Wait(mask | drv_timer_sigmask(t)) & mask;
+	drv_timer_cancel(t);
+	return seen;
 }

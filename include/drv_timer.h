@@ -33,10 +33,16 @@ void drv_timer_close(struct drv_timer *t);
 void drv_timer_sleep_ms(struct drv_timer *t, ULONG ms);
 
 /* Periodic use: arm asynchronously, Wait() on drv_timer_sigmask, consume the
- * completed request, re-arm.  Cancel aborts+consumes an armed request. */
+ * completed request, re-arm.  Cancel aborts+consumes an armed request and
+ * clears the port's signal, so the next arm can trust that signal. */
 void drv_timer_arm_ms(struct drv_timer *t, ULONG ms);
 void drv_timer_consume(struct drv_timer *t);
 void drv_timer_cancel(struct drv_timer *t);
+
+/* Sleep until a signal of @mask or until @ms have passed (0 is one
+ * millisecond); the request is always collected. Not with an armed request.
+ * Returns the signals of @mask seen, 0 on the timeout or with no timer. */
+ULONG drv_timer_wait(struct drv_timer *t, ULONG mask, ULONG ms);
 
 static inline ULONG drv_timer_sigmask(const struct drv_timer *t)
 {

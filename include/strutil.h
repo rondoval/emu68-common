@@ -21,4 +21,9 @@ int atoi(const char *s);
 __SIZE_TYPE__ strlen(const char *s);
 __SIZE_TYPE__ strlcpy(char *dst, const char *src, __SIZE_TYPE__ size);
 
+/* strlcpy for a value that must not be cut short, because the first part of a
+ * name is another name: a @src that does not fit returns FALSE and leaves @dst
+ * as it was. */
+BOOL strfit(char *dst, const char *src, __SIZE_TYPE__ size);
+
 #endif

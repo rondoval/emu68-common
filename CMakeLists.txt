@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 cmake_minimum_required(VERSION 3.14.0)
-project(common VERSION 2.3.0 LANGUAGES C ASM)
+project(common VERSION 2.4.0 LANGUAGES C ASM)
 string(TIMESTAMP CURRENT_DATE "(%d.%m.%Y)")
 if(EMU68_BUILD_STAMP)   # local-build marker from the stack's build.sh; empty in releases
     string(APPEND CURRENT_DATE " ${EMU68_BUILD_STAMP}")
@@ -63,6 +63,10 @@ target_include_directories(common
 
 add_subdirectory(tools)
 
+# The common test harness: the kv and logic libraries, the emu68test package.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonTesting.cmake)
+add_subdirectory(testing)
+
 # Install targets
 install(TARGETS common
 	EXPORT Emu68CommonTargets
@@ -103,6 +107,7 @@ install(FILES
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonCacheOps.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonSfd.cmake
 	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonSfdScript.cmake
+	${CMAKE_CURRENT_SOURCE_DIR}/cmake/Emu68CommonTesting.cmake
 	DESTINATION lib/cmake/Emu68Common
 )
 

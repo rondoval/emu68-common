@@ -6,6 +6,7 @@
 - Also builds the hosted `emu68check` CLI tool (`tools/`), installed to `C/` — run by the stack's Install script from the archive, not a user-facing command.
 - `tools/memcheck.c` proves `memmove` on m68k, byte for byte, and is not installed. Run it after any change to the memory primitives, on an Amiga to include the JIT: a host test only exercises the host's own `memmove`.
 - `tools/prefscheck.c` does the same for `prefs.h` and `strfit()`, also not installed. Run it after changing them; vamos is enough, as nothing there depends on the JIT.
+- `testing/` is the stack's common test harness (`testing/README.md`): the `emu68test` Python package, the `Emu68Common::kv` and `Emu68Common::logic` libraries and `emu68_logic_program()`. The components' suites build on it through the install tree. Its own tests: `tests/run.sh host` (no Amiga; needs the stack built). Run them after any change under `testing/`.
 - Changes here can affect multiple downstream repos, so prefer validating through `emu68-driver-stack` if public headers or shared helper semantics change.
 
 ## Build

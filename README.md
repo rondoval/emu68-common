@@ -50,6 +50,16 @@ Proves `memmove` byte for byte on m68k: every length to 300 with every gap to 14
 
 Proves `prefs.h` and `strfit()` on m68k: what each value comes to, the ends of a number's range, a real file read a line at a time, and that a bare Task gets nothing. Not installed. Runs on an Amiga, or on the host with `vamos -C 68040 -m 4096 prefscheck`. RC 0 when everything held, else RC 10 and each failure.
 
+## Test harness (`testing/`, `tests/`)
+
+What the stack's test suites share, so that no component carries its own copy (`testing/README.md`):
+
+- **`emu68test`**, a Python package for the host side of a pytest suite: the Amiga through amimcp, the install of a build and the restore of the machine's own files, the debug log, baselines, the report, the code gates, traceability, and the pytest plugin with the suites' common options and fixtures. The stack installs it to `share/emu68-testing/`.
+- **`Emu68Common::kv`** (`<emu68test/kv.h>`): the `key=value` output grammar of a test program on the Amiga.
+- **`Emu68Common::logic`** (`<emu68test/logic.h>`) and `emu68_logic_program()`: a component's own sources built as an m68k program and run on the host under vamos, on fake exec and utility bases.
+
+`tests/run.sh host` tests the harness itself and runs `memcheck` and `prefscheck` under vamos; it needs no Amiga, only the stack built once. `testing/README.md` says how a component starts a suite on it.
+
 ## emu68check (`tools/`)
 
 A small hosted CLI probe the driver stack's Install script runs from the extracted archive (it is never copied to `C:`). Query-only — all answers are return codes aligned with dos `RETURN_*`:

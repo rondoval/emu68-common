@@ -164,14 +164,15 @@ def pytest_sessionfinish(session, exitstatus):
     session.config.pluginmanager.get_plugin("terminalreporter").write_line(f"report: {path}")
 
 
-def connect(request, capture: DebugLog | None = None) -> Device:
+def connect(request, capture: DebugLog | None = None, device_class: type[Device] = Device) -> Device:
     """The Amiga the run was pointed at, checked and ready: the agent answers, C: is as expected, the
-    suite's RAM: drawers exist. The run ends (exit code 3) when it is not."""
+    suite's RAM: drawers exist. The run ends (exit code 3) when it is not. @device_class is the suite's
+    own Device, when it adds to it."""
     config = request.config
     suite = session(config).suite
     mod, ami = client(config.getoption("--amimcp"), config.getoption("--server"))
-    device = Device(mod, ami, request.getfixturevalue("rundir"), suite.ram, suite.kv_programs, capture,
-                    suite.end_marks, suite.boot_settle_s)
+    device = device_class(mod, ami, request.getfixturevalue("rundir"), suite.ram, suite.kv_programs, capture,
+                          suite.end_marks, suite.boot_settle_s)
     try:
         ami.ping()
     except Exception as e:

@@ -1,18 +1,31 @@
 # SPDX-License-Identifier: MPL-2.0 OR GPL-2.0+
 """
 screen.py - the Amiga's screen, for a suite that looks at it: screenshots as
-arrays, a window's place, clicks. It needs numpy, and amimcp's png module
-(importable once machine.client() has run).
+arrays, a window's place, clicks. It needs numpy, and amimcp's png module,
+taken from beside its amiga module.
 """
 from __future__ import annotations
 
+import importlib.util
 import re
 import time
+from pathlib import Path
 
 import numpy as np
 
 WAKE_SETTLE_S = 0.3
 WINDOW_RE = re.compile(r'W\s+\d+\s+(-?\d+)\s+(-?\d+)\s+(\d+)x(\d+)\s+\S+\s+"(.*)"')
+_png = None                 # amimcp's png module, loaded on the first screenshot
+
+
+def amimcp_png(device):
+    """amimcp's png module, loaded by its path: a suite may have the pypng package, which is `png` too."""
+    global _png
+    if _png is None:
+        spec = importlib.util.spec_from_file_location("amimcp_png", Path(device.mod.__file__).with_name("png.py"))
+        _png = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(_png)
+    return _png
 
 
 def wake(device) -> None:
@@ -27,15 +40,13 @@ def wake(device) -> None:
 
 def screenshot(device, rect: tuple[int, int, int, int] | None = None, screen: int = 0, name: str = "shot") -> np.ndarray:
     """A region (x, y, w, h) of a screen as an RGB array, saved as a PNG in the test's artifact dir."""
-    import png  # amimcp's
-
     if rect:
         x, y, w, h = rect
         shot = device.ami.screenshot(timeout=60, x=x, y=y, w=w, h=h, screen=screen)
     else:
         shot = device.ami.screenshot(timeout=60, screen=screen)
     if device.artifacts is not None:
-        (device.artifacts / f"{name}.png").write_bytes(png.screenshot_png(shot))
+        (device.artifacts / f"{name}.png").write_bytes(amimcp_png(device).screenshot_png(shot))
     if shot.palette is not None:
         palette = np.array(shot.palette, np.uint8)
         return palette[np.frombuffer(shot.pixels, np.uint8)].reshape(shot.height, shot.width, 3)

@@ -50,7 +50,7 @@ class ToolTimeout(AssertionError):
 
 def client(amimcp: str, server: str):
     """amimcp's module and a connected client for @server (address and token from AMIGA_*, else ~/.claude.json)."""
-    sys.path.insert(0, os.path.join(amimcp, "server"))
+    sys.path.append(os.path.join(amimcp, "server"))  # last: its png.py must not hide the pypng package
     import amiga  # noqa: E402
 
     host = os.environ.get("AMIGA_HOST")

@@ -20,6 +20,19 @@ static ULONG checksMade;
 static ULONG checksFailed;
 static BOOL environmentFailed;
 
+void __chkabort(void);
+
+/**
+ * __chkabort() - Replace libnix's Ctrl-C check, which its stdio calls and
+ * which ends the program on the spot.
+ *
+ * A program of the grammar ends with its verdict: it looks for Ctrl-C itself
+ * and winds down, or the suite cannot stop it.
+ */
+void __chkabort(void)
+{
+}
+
 /**
  * debug_text() - Write a text to Emu68's debug log, as it is.
  * @text: the text.

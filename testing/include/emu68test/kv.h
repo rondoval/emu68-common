@@ -21,7 +21,9 @@
  * output of the grammar at all.
  *
  * Every line goes to stdout, flushed: a program broken mid-run leaves what it
- * printed. A program on a real machine may also mark its run in Emu68's debug
+ * printed. Linking this library turns off libnix's own Ctrl-C check, which
+ * would end the program inside a stdio call, without its verdict: a program
+ * that can be stopped looks for SIGBREAKF_CTRL_C itself and winds down. A program on a real machine may also mark its run in Emu68's debug
  * log (kv_debug_log()), so the suite can cut the log by runs.
  */
 #ifndef EMU68TEST_KV_H

@@ -78,6 +78,19 @@ def test_a_suite_without_an_inherited_mark_allows_no_ceiling_over_15(tmp_path):
     assert found == "ceiling 20 > 15: only inherited ceilings are higher"
 
 
+@pytest.mark.parametrize("complexity, entry, problem", [
+    (15, None, None),
+    (16, None, "complexity 16 > 15"),
+    (20, gates.Ceiling(20, "a reason"), None),
+    (21, gates.Ceiling(21, "a reason"), "ceiling 21 > 20: only inherited ceilings are higher"),
+    (14, gates.Ceiling(18, "a reason"), "complexity 14: needs no entry in complexity-allow.txt any more"),
+], ids=["at its limit", "over it", "an entry at its ceiling", "an entry over it", "simple again"])
+def test_a_suite_s_own_limits(tmp_path, complexity, entry, problem):
+    own = gates_over(tmp_path, DOCUMENTED)
+    own.complexity_limit, own.complexity_allowed = 15, 20
+    assert own.ceiling_finding(complexity, entry) == problem
+
+
 def test_the_gates_name_a_file_s_findings_relative_to_the_component(tmp_path):
     undocumented = gates_over(tmp_path, "static int f(int a)\n{\n    return a;\n}\n")
     assert undocumented.kerneldoc_findings() == ["src/x.c:1 f: no kernel-doc comment"]

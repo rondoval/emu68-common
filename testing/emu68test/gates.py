@@ -10,12 +10,14 @@ upstream are left out: a clean diff is worth more there than our comments.
 - Kernel-doc: a /** comment right above every function, "name() - what it
   does", an "@param:" line for each parameter, and "Return:" unless it
   returns void.
-- Complexity (lizard's cyclomatic complexity): at most COMPLEXITY_LIMIT. A
-  function in the suite's allow list may have at most the ceiling given
-  there, which is at most COMPLEXITY_ALLOWED with a reason, or what the code
-  had when the gate was introduced (a reason starting with the suite's
-  inherited mark, such as "5.0:"). A ceiling stays at what the function needs:
-  one above it is a finding until lowered, so the list only goes down.
+- Complexity (lizard's cyclomatic complexity): at most the suite's limit
+  (COMPLEXITY_LIMIT unless it sets its own). A function in the suite's allow
+  list may have at most the ceiling given there, which is at most the
+  suite's allowed ceiling (COMPLEXITY_ALLOWED unless it sets its own) with a
+  reason, or what the code had when the gate was introduced (a reason
+  starting with the suite's inherited mark, such as "5.0:"). A ceiling stays
+  at what the function needs: one above it is a finding until lowered, so
+  the list only goes down.
 
 The allow list, one function per line:
 
@@ -29,8 +31,8 @@ from pathlib import Path
 
 import lizard
 
-COMPLEXITY_LIMIT = 10
-COMPLEXITY_ALLOWED = 15
+COMPLEXITY_LIMIT = 10      # a function's complexity without an allow-list entry, unless the suite sets its own
+COMPLEXITY_ALLOWED = 15    # the highest ceiling an entry may give with a reason, unless the suite sets its own
 REGISTER_BINDING = re.compile(r'asm\s*\("[^"]*"\)')
 VOID_RESULT = re.compile(r"\b(void|VOID)\s*$")
 ATTRIBUTE_MACRO = re.compile(r"^\s*[A-Z][A-Z0-9_]*\s*\([^;{}]*\)\s*$")   # EMU68_INTSERVER(bcmgenet_isr0)
@@ -66,6 +68,8 @@ class Gates:
     sources: list[Path]             # every C file the gates cover
     allow_list: Path                # the complexity allow list
     inherited: str = ""             # the reason prefix of a ceiling the code had before the gate, e.g. "5.0:"
+    complexity_limit: int = COMPLEXITY_LIMIT        # the most a function may have without an entry
+    complexity_allowed: int = COMPLEXITY_ALLOWED    # the highest ceiling an entry may give, inherited ones aside
 
     def where(self, path: Path, function) -> str:
         """A function as findings name it: <file>:<line> <name>."""
@@ -81,12 +85,12 @@ class Gates:
     def ceiling_finding(self, complexity: int, entry: Ceiling | None) -> str | None:
         """What is wrong with a function's complexity against its allow-list entry, or None."""
         if entry is None:
-            return None if complexity <= COMPLEXITY_LIMIT else f"complexity {complexity} > {COMPLEXITY_LIMIT}"
-        if entry.ceiling > COMPLEXITY_ALLOWED and not (self.inherited and entry.reason.startswith(self.inherited)):
-            return f"ceiling {entry.ceiling} > {COMPLEXITY_ALLOWED}: only inherited ceilings are higher"
+            return None if complexity <= self.complexity_limit else f"complexity {complexity} > {self.complexity_limit}"
+        if entry.ceiling > self.complexity_allowed and not (self.inherited and entry.reason.startswith(self.inherited)):
+            return f"ceiling {entry.ceiling} > {self.complexity_allowed}: only inherited ceilings are higher"
         if complexity > entry.ceiling:
             return f"complexity {complexity} > its ceiling {entry.ceiling}"
-        if complexity <= COMPLEXITY_LIMIT:
+        if complexity <= self.complexity_limit:
             return f"complexity {complexity}: needs no entry in {self.allow_list.name} any more"
         if complexity < entry.ceiling:
             return f"complexity {complexity} < its ceiling {entry.ceiling}: lower the ceiling"

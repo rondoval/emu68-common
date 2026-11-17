@@ -35,7 +35,7 @@ component reaches into another's tree.
 | `perf.py` | a profile build's perf slots from the debug log |
 | `build.py` | `BuildInfo`: a component's flavour from the stack build's `CMakeCache.txt` |
 | `vamos.py` | logic programs: found in the build dir, checked against their sources, run under vamos |
-| `gates.py` | kernel-doc and complexity over the files a suite calls its own |
+| `gates.py` | kernel-doc and complexity over the files a suite calls its own; complexity at most 10, an allow-list entry 15, unless the suite sets its own limits |
 | `trace.py` | traceability: a suite's items, the tests that cover them, known gaps with their reasons, `TRACEABILITY.md` |
 
 ## The grammar

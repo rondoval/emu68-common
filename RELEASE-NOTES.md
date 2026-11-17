@@ -13,7 +13,7 @@ Changes since 2.3.0.
     Amiga through amimcp (commands, uploads with read-back, background jobs,
     reboots), the install of a build with the machine's own files kept for a
     restore, the debug log, baselines, the run's report, a build's flavour,
-    kernel-doc and complexity gates, traceability, and a pytest plugin with the
+    kernel-doc and complexity gates (a suite may set its own limits), traceability, and a pytest plugin with the
     options and fixtures the suites share. Installed to
     `share/emu68-testing/`.
   - **`Emu68Common::kv`** (`<emu68test/kv.h>`): the `key=value` output grammar

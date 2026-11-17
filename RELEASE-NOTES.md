@@ -18,7 +18,8 @@ Changes since 2.3.0.
     `share/emu68-testing/`.
   - **`Emu68Common::kv`** (`<emu68test/kv.h>`): the `key=value` output grammar
     of a test program on the Amiga, with checks and return codes, which the
-    package reads.
+    package reads. A program that links it is no longer ended by libnix's own
+    Ctrl-C check: it looks for Ctrl-C itself and ends with its verdict.
   - **`Emu68Common::logic`** (`<emu68test/logic.h>`) and
     **`emu68_logic_program()`**: a component's own sources built as an m68k
     program and run on the host under vamos. It gives the code fake exec and

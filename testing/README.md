@@ -36,7 +36,7 @@ component reaches into another's tree.
 | `build.py` | `BuildInfo`: a component's flavour from the stack build's `CMakeCache.txt` |
 | `vamos.py` | logic programs: found in the build dir, checked against their sources, run under vamos |
 | `gates.py` | kernel-doc and complexity over the files a suite calls its own |
-| `trace.py` | traceability: a suite's items, the tests that cover them, `TRACEABILITY.md` |
+| `trace.py` | traceability: a suite's items, the tests that cover them, known gaps with their reasons, `TRACEABILITY.md` |
 
 ## The grammar
 
@@ -50,6 +50,16 @@ the format line. `kv.h` prints it, `results.py` reads it.
 A program on a real machine may also mark its run in the debug log (`kv_debug_log()`), so a suite
 can cut the log by runs. A logic program never does: nothing answers at the debug port under
 vamos.
+
+Two things follow from `kv.c` printing through stdio:
+
+- **Ctrl-C.** libnix's stdio looks for Ctrl-C and ends the program on the spot, without its
+  verdict and with whatever it holds left open. Linking `Emu68Common::kv` turns that check off,
+  so a program a suite stops with `Job.stop()` has to look for `SIGBREAKF_CTRL_C` itself and wind
+  down.
+- **DOS output beside it.** A line the program prints with dos.library (`Printf()`,
+  `PrintFault()`) sits in the file handle's buffer and would come out after later lines of the
+  grammar: follow it with `Flush(Output())`.
 
 ## Starting a suite in a component
 
@@ -71,6 +81,33 @@ vamos.
    under test, takes its steps from the command line and prints the state after each (`logic.h`).
 4. The component's CMake states the emu68-common version it needs (`find_package(Emu68Common
    2.4 ...)`: 2.4 is the first with the harness).
+
+The `device` fixture is the suite's own, built on `plugin.connect()`: what a suite installs and
+proves first is its business. Two things a suite can add:
+
+- **Its own `Device`.** `plugin.connect(request, capture, device_class=...)` takes a subclass
+  (the VideoCore suites' `VchiqDevice` runs its rigs by name and adds the screen).
+- **A package of its own on top,** when other components' suites need its fixtures. The vchiq
+  library keeps its part in `tests/vchiqtest/` (a plugin, the device, the material) and installs
+  it to `<install>/share/vchiq-testing/`; rpivid's conftest loads both plugins from the install
+  tree. A suite never imports from a sibling's source tree, a test module included: what two
+  suites share moves into such a package.
+
+## Running a suite
+
+- **The machine's own files.** `Installer` copies each file to `tests/.machine/<server>/` on the
+  host before it first replaces it, and never overwrites that copy. A suite that runs after
+  another has installed its build finds that build there, not the machine's original: restore
+  from the directory of the suite that came first.
+- **Options that name a directory** are written `--build-dir=PATH`, with the equals sign, in a
+  suite whose `run.sh` names no test directory itself (vchiq's, rpivid's). pytest takes a
+  separate, existing path for a place to collect from, and then finds neither the suite's
+  `conftest.py` nor its `pytest.ini`. genet's `run.sh` names its `hw` directory, which avoids it.
+- **A suite's `run.sh` changes into `tests/`** before it starts pytest, so a relative
+  `--run-dir` is relative to that.
+- **The agent can stall** for a minute or two. `Device.exec()` and the transfers wait and try
+  once more; a test that calls the agent's client directly wraps the call in `device.retry()`.
+  Judge a time by the test program's own clock, never by the host's around a call.
 
 ## Its own tests
 

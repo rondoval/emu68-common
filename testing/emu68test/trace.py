@@ -9,6 +9,11 @@ device raises, the keys a prefs reader knows (function_body() and
 case_labels() help). A test covers an item when one of its
 @pytest.mark.covers() labels is the item's name, or matches one of the item's
 patterns.
+
+An item no test can cover yet is a known gap: the suite gives it the reason
+(Item.gap), and TRACEABILITY.md shows it as one. A gap is a debt named, not a
+pass: a known gap that a test covers after all is a finding, so the list only
+goes down.
 """
 from __future__ import annotations
 
@@ -28,6 +33,7 @@ class Item:
     name: str
     note: str = ""
     patterns: list[str] = field(default_factory=list)   # labels matching one cover it too
+    gap: str = ""                                       # why no test covers it yet: a known gap
     tests: list[str] = field(default_factory=list)
 
     def covered_by(self, label: str) -> bool:
@@ -76,21 +82,33 @@ def trace(items: list[Item], tests_dir: Path) -> list[Item]:
 
 
 def uncovered(traced: list[Item]) -> list[str]:
-    """The items no test covers, each as 'group: name'."""
-    return [f"{item.group}: {item.name}" for item in traced if not item.tests]
+    """The items no test covers and no known gap explains, each as 'group: name'."""
+    return [f"{item.group}: {item.name}" for item in traced if not item.tests and not item.gap]
+
+
+def gaps(traced: list[Item]) -> list[str]:
+    """The known gaps, each as 'group: name'."""
+    return [f"{item.group}: {item.name}" for item in traced if item.gap and not item.tests]
+
+
+def stale_gaps(traced: list[Item]) -> list[str]:
+    """The known gaps a test covers after all, each as 'group: name': the gap is to be taken off the list."""
+    return [f"{item.group}: {item.name}" for item in traced if item.gap and item.tests]
 
 
 def markdown(traced: list[Item], title: str) -> str:
     """TRACEABILITY.md's text, under @title (the component's name)."""
     lines = [f"# {title}: traceability", "",
              "Written by the suite's host tier (`run.sh host` rewrites it): every item the suite must cover, "
-             "with the tests that cover it.", "", f"**Uncovered: {len(uncovered(traced))}** of {len(traced)} items.", ""]
+             "with the tests that cover it.", "",
+             f"**Uncovered: {len(uncovered(traced))}** of {len(traced)} items; known gaps: {len(gaps(traced))}.", ""]
     for group in dict.fromkeys(item.group for item in traced):
         lines += [f"## {group}", "", "| Item | Tests |", "|---|---|"]
         for item in (i for i in traced if i.group == group):
             shown = ", ".join(f"`{test}`" for test in item.tests[:SHOWN])
             more = f" and {len(item.tests) - SHOWN} more" if len(item.tests) > SHOWN else ""
             name = f"{item.name} ({item.note})" if item.note else item.name
-            lines.append(f"| {name} | {shown + more if item.tests else '**none**'} |")
+            missing = f"**known gap:** {item.gap}" if item.gap else "**none**"
+            lines.append(f"| {name} | {shown + more if item.tests else missing} |")
         lines.append("")
     return "\n".join(lines)

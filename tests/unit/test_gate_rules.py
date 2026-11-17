@@ -107,7 +107,16 @@ def test_the_table_counts_and_marks_what_no_test_covers():
     traced = [trace.Item("g", "covered", tests=["a::t"]), trace.Item("g", "bare")]
     text = trace.markdown(traced, "thing.device")
     assert trace.uncovered(traced) == ["g: bare"] and text.startswith("# thing.device: traceability")
-    assert "**Uncovered: 1** of 2 items." in text and "| bare | **none** |" in text and "| covered | `a::t` |" in text
+    assert "**Uncovered: 1** of 2 items; known gaps: 0." in text
+    assert "| bare | **none** |" in text and "| covered | `a::t` |" in text
+
+
+def test_a_known_gap_is_shown_as_one_and_is_a_finding_once_a_test_covers_it():
+    traced = [trace.Item("g", "owed", gap="no rig passes it"), trace.Item("g", "paid", gap="old reason", tests=["a::t"])]
+    text = trace.markdown(traced, "thing.device")
+    assert trace.uncovered(traced) == [] and trace.gaps(traced) == ["g: owed"]
+    assert trace.stale_gaps(traced) == ["g: paid"]
+    assert "**Uncovered: 0** of 2 items; known gaps: 1." in text and "| owed | **known gap:** no rig passes it |" in text
 
 
 def test_the_labels_come_from_the_suite_s_test_files_and_the_items_from_a_dispatcher(tmp_path):

@@ -58,3 +58,5 @@ dkms.conf
 
 build/
 install/
+# Python (testing/, tests/)
+__pycache__/

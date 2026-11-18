@@ -1,3 +1,38 @@
+# Release notes - emu68-common 2.4.0
+
+Changes since 2.3.0.
+
+---
+
+## New features (new APIs / build)
+
+- **A common test harness for the stack's components**, in `testing/`
+  (`testing/README.md`). A component's test suite builds on it instead of
+  carrying its own copy:
+  - **`emu68test`, a Python package** for the host side of a pytest suite: the
+    Amiga through amimcp (commands, uploads with read-back, background jobs,
+    reboots), the install of a build with the machine's own files kept for a
+    restore, the debug log, baselines, the run's report, a build's flavour,
+    kernel-doc and complexity gates (a suite may set its own limits), traceability, and a pytest plugin with the
+    options and fixtures the suites share. Installed to
+    `share/emu68-testing/`.
+  - **`Emu68Common::kv`** (`<emu68test/kv.h>`): the `key=value` output grammar
+    of a test program on the Amiga, with checks and return codes, which the
+    package reads. A program that links it is no longer ended by libnix's own
+    Ctrl-C check: it looks for Ctrl-C itself and ends with its verdict.
+  - **`Emu68Common::logic`** (`<emu68test/logic.h>`) and
+    **`emu68_logic_program()`**: a component's own sources built as an m68k
+    program and run on the host under vamos. It gives the code fake exec and
+    utility bases that record `Signal()`, `PutMsg()` and `ReplyMsg()`, can fail
+    allocations, and end the run on a call the program does not model.
+- **`tests/run.sh host`** tests the harness itself, and runs `memcheck` and
+  `prefscheck` under vamos. It needs no Amiga.
+
+Nothing changes for a driver that does not use the harness: the `common`
+library and its headers are as in 2.3.0.
+
+---
+
 # Release notes - emu68-common 2.3.0
 
 Changes since 2.2.1.

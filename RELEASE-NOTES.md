@@ -1,3 +1,22 @@
+# Release notes - emu68-common 2.5.0
+
+Changes since 2.4.0.
+
+---
+
+## New features (new APIs / build)
+
+- **`byteorder.h` works on either byte order.** `le16`/`le32`/`le64` swap on a
+  big-endian CPU and do nothing on a little-endian one, so code that uses them
+  can also be built for a little-endian host, for example to run a component's
+  logic tests natively. On m68k they compile to the same code as before.
+- **`be16`/`be32`/`be64`** for big-endian data, the mirror of the above: free
+  on m68k, a swap on a little-endian host.
+- **`__be16`/`__be32`/`__be64`** in `types.h`, beside the `__le` types, to name
+  the byte order of a field in a wire or register layout.
+
+---
+
 # Release notes - emu68-common 2.4.0
 
 Changes since 2.3.0.

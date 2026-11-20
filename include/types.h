@@ -19,6 +19,10 @@ typedef uint32_t __le32;
 typedef uint16_t __le16;
 typedef uint8_t __le8;
 
+typedef uint64_t __be64;
+typedef uint32_t __be32;
+typedef uint16_t __be16;
+
 typedef ULONG dma_addr_t;
 
 #define UINT_MAX 0xffffffffu

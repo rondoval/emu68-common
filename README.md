@@ -78,7 +78,7 @@ The remaining headers are small, mostly inline helpers shared by the drivers. Ea
 |---|---|
 | `types.h` | Fixed-width integer types (`u8`–`u64`, `s8`–`s64`), little-endian MMIO types (`__le8`–`__le64`), `dma_addr_t`, and `likely()`/`unlikely()` branch hints. |
 | `bits.h` | Bit and alignment helpers: `ALIGN_UP`, `DIV_CEIL`, `BIT()`, mask extract/insert/update, `log2_floor_u32/u64`, `round_up_pow2_u32/u64`, and `u64` hi/lo splits. |
-| `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`) for byte-swapping device data on the big-endian m68k. |
+| `byteorder.h` | Endianness conversion macros (`le16`/`le32`/`le64`, `be16`/`be32`/`be64`) between the CPU's byte order and device data; correct on the big-endian m68k and on a little-endian host. |
 | `barrier.h` | `emu68_barrier()` — the Emu68 NOP-becomes-`dsb sy` trick; a batch terminator for `cache_ops.h` and an MMIO ordering barrier for `iomem.h`. |
 | `iomem.h` | MMIO accessors — `mmio_read{8,16,32}` / `mmio_write{8,16,32}` (each followed by a barrier) plus read-modify-write helpers (`mmio_update/clear/set`), `mmio_poll_timeout()` (poll a register until masked-match, device-gone, or timeout), and the `mmio_read32_relaxed` / `mmio_write32_relaxed` pair without the barrier, for batches the caller closes with one explicit `emu68_barrier()`. |
 | `devtree.h` | Device-tree lookup wrappers over `devicetree.resource`: alias, symbol (`/__symbols__` label, `DT_OpenSymbol`) and phandle lookup, property/number reads, base-address resolution (`DT_GetBaseAddressVirtual`), DMA-address resolution through `dma-ranges` (`DT_GetDmaAddress`, `DT_GetDmaWindow` with the reachable range), Emu68 carve-outs (`DT_GetEmu68Range`) and `DT_GetInterrupt`. The caller opens the resource and passes it in. |

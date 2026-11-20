@@ -8,16 +8,17 @@
 
 #include <exec/types.h>
 
+#include <byteorder.h>
 #include <debug.h>
 #include <devtree.h>
 
-u64 DT_GetNumber(const u32 *ptr, u32 cells)
+u64 DT_GetNumber(const __be32 *ptr, u32 cells)
 {
 	u64 value = 0;
 
 	while (cells--)
 	{
-		value = (value << 32) | *ptr++;
+		value = (value << 32) | be32(*ptr++);
 	}
 	return value;
 }
@@ -26,7 +27,7 @@ u32 DT_GetPropertyValueULONG(APTR DeviceTreeBase, APTR key, const char *propname
 {
 	APTR p = DT_FindProperty(key, (CONST_STRPTR)propname);
 
-	return DT_GetPropLen(p) >= sizeof(u32) ? *(const u32 *)DT_GetPropValue(p) : def_val;
+	return DT_GetPropLen(p) >= sizeof(__be32) ? be32(*(const __be32 *)DT_GetPropValue(p)) : def_val;
 }
 
 /*
@@ -77,8 +78,8 @@ static BOOL dt_map(APTR DeviceTreeBase, APTR bus, CONST_STRPTR propname, BOOL to
 	const u32 size_cells = DT_GetPropertyValueULONG(DeviceTreeBase, bus, "#size-cells", 1);
 	const u32 record_cells = child_cells + parent_cells + size_cells;
 
-	const u32 *rec = DT_GetPropValue(prop);
-	u32 cells_left = DT_GetPropLen(prop) / sizeof(u32);
+	const __be32 *rec = DT_GetPropValue(prop);
+	u32 cells_left = DT_GetPropLen(prop) / sizeof(__be32);
 
 	u64 mapped = addr; /* an empty property: the same address on both sides */
 	u64 range_start = 0, range_end = 0;
@@ -132,13 +133,13 @@ APTR DT_GetBaseAddressVirtual(APTR DeviceTreeBase, APTR key, u32 index)
 	const u32 record_cells = addr_cells + size_cells;
 
 	APTR reg = DT_FindProperty(key, (CONST_STRPTR) "reg");
-	if (addr_cells == 0 || DT_GetPropLen(reg) / sizeof(u32) < (index + 1) * record_cells)
+	if (addr_cells == 0 || DT_GetPropLen(reg) / sizeof(__be32) < (index + 1) * record_cells)
 	{
 		Kprintf("[devtree] %s: %s has no reg record %ld\n", __func__, DT_GetKeyName(key), index);
 		return NULL;
 	}
 
-	const u32 *rec = (const u32 *)DT_GetPropValue(reg) + index * record_cells;
+	const __be32 *rec = (const __be32 *)DT_GetPropValue(reg) + index * record_cells;
 	u32 virt;
 	if (!dt_map(DeviceTreeBase, bus, (CONST_STRPTR) "ranges", TRUE, DT_GetNumber(rec, addr_cells), 1, &virt, NULL))
 		return NULL;
@@ -167,12 +168,12 @@ BOOL DT_GetEmu68Range(APTR DeviceTreeBase, CONST_STRPTR name, u32 *base, u32 *si
 		return FALSE;
 
 	APTR prop = DT_FindProperty(key, name);
-	BOOL found = DT_GetPropLen(prop) >= 2u * sizeof(u32);
+	BOOL found = DT_GetPropLen(prop) >= 2u * sizeof(__be32);
 	if (found)
 	{
-		const u32 *v = DT_GetPropValue(prop); /* big-endian cells, as Emu68 writes them: native here */
-		*base = v[0];
-		*size = v[1];
+		const __be32 *v = DT_GetPropValue(prop);
+		*base = be32(v[0]);
+		*size = be32(v[1]);
 	}
 	DT_CloseKey(key);
 	return found;
@@ -213,7 +214,7 @@ APTR DT_FindByPHandle(APTR DeviceTreeBase, APTR key, u32 phandle)
 		return NULL;
 
 	APTR p = DT_FindProperty(key, (CONST_STRPTR) "phandle");
-	if (DT_GetPropLen(p) >= sizeof(u32) && *(const u32 *)DT_GetPropValue(p) == phandle)
+	if (DT_GetPropLen(p) >= sizeof(__be32) && be32(*(const __be32 *)DT_GetPropValue(p)) == phandle)
 		return key;
 
 	for (APTR c = DT_GetChild(key, NULL); c; c = DT_GetChild(key, c))
@@ -251,19 +252,19 @@ s32 DT_GetInterrupt(APTR DeviceTreeBase, APTR key, u32 index)
 		return -1;
 	}
 
-	const u32 *interrupts = DT_GetPropValue(prop);
+	const __be32 *interrupts = DT_GetPropValue(prop);
 	const u32 len = DT_GetPropLen(prop);
 
-	if (len / sizeof(u32) < (index + 1) * interrupt_cells)
+	if (len / sizeof(__be32) < (index + 1) * interrupt_cells)
 	{
 		Kprintf("[devtree] %s: Interrupt index out of range\n", __func__);
 		return -1;
 	}
 
-	const u32 *ptr = interrupts + index * interrupt_cells;
+	const __be32 *ptr = interrupts + index * interrupt_cells;
 
-	const u32 interrupt_type = ptr[0];
-	u32 interrupt_number = ptr[1];
+	const u32 interrupt_type = be32(ptr[0]);
+	u32 interrupt_number = be32(ptr[1]);
 
 	if (interrupt_type == 0)
 		interrupt_number += 32u; // SPI
@@ -271,7 +272,7 @@ s32 DT_GetInterrupt(APTR DeviceTreeBase, APTR key, u32 index)
 		interrupt_number += 16u; // PPI
 
 #ifdef TRACE
-	const u32 interrupt_flags = interrupt_cells >= 3 ? ptr[2] : 0;
+	const u32 interrupt_flags = interrupt_cells >= 3 ? be32(ptr[2]) : 0;
 	char *trigger;
 	switch (interrupt_flags & 0xf)
 	{

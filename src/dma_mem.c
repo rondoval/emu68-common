@@ -4,8 +4,7 @@
  *             and a region-restricted pool.  See dma_mem.h for the rationale.
  *
  * The Emu68 RAM regions are taken from the device-tree /memory node, parsed the same
- * way devicetree.resource's Add_DT_Memory does (m68k is big-endian, so DT cells are
- * read directly).  The region pool sub-allocates from arenas grabbed via the Exec
+ * way devicetree.resource's Add_DT_Memory does.  The region pool sub-allocates from arenas grabbed via the Exec
  * low-level Allocate() on those Emu68 MemHeaders, so every block is guaranteed to be
  * Pi DRAM the DMA engines can reach — even if Emu68 RAM is under pressure.
  *
@@ -76,8 +75,8 @@ void dma_mem_init(struct dma_mem_ctx *ctx, struct ExecBase *SysBase)
 
 	/* The value stays valid after the key is closed */
 	APTR mem_prop = DT_FindProperty(memory, (CONST_STRPTR) "reg");
-	const u32 *reg = DT_GetPropValue(mem_prop);
-	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(ULONG);
+	const __be32 *reg = DT_GetPropValue(mem_prop);
+	ULONG cells = DT_GetPropLen(mem_prop) / sizeof(__be32);
 	DT_CloseKey(memory);
 	if (reg == NULL)
 	{

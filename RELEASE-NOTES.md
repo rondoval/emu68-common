@@ -14,6 +14,11 @@ Changes since 2.4.0.
   on m68k, a swap on a little-endian host.
 - **`__be16`/`__be32`/`__be64`** in `types.h`, beside the `__le` types, to name
   the byte order of a field in a wire or register layout.
+- **The device-tree helpers read their cells with `be32()`.** Device-tree cells
+  are big-endian: `DT_GetNumber()` now takes `const __be32 *`, the same type as
+  `const u32 *`, so callers build unchanged. A caller that reads cells itself
+  converts them with `be32()` too. On m68k the helpers compile to the same code
+  as before.
 
 ---
 

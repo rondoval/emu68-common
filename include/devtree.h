@@ -22,10 +22,10 @@
  * default, NULL or -1 comes back.
  */
 
-/* The cells at @ptr as one number, most significant cell first.  Holds two cells. */
-u64 DT_GetNumber(const u32 *ptr, u32 cells);
+/* The big-endian cells at @ptr as one number, most significant cell first.  Holds two cells. */
+u64 DT_GetNumber(const __be32 *ptr, u32 cells);
 
-/* The first cell of a property of @key; @def_val if it is missing or shorter than a cell. */
+/* The first cell of a property of @key, in CPU order; @def_val if it is missing or shorter than a cell. */
 u32 DT_GetPropertyValueULONG(APTR DeviceTreeBase, APTR key, const char *propname, u32 def_val);
 
 /* The path an entry of /aliases names; NULL if there is no such alias. */

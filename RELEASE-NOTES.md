@@ -1,3 +1,21 @@
+# Release notes - emu68-common 2.5.1
+
+Changes since 2.5.0.
+
+---
+
+## Changes
+
+- **Device-tree cells are read with `be32()` everywhere.** They are big-endian:
+  `DT_GetNumber()` now takes `const __be32 *`, the same type as `const u32 *`,
+  so callers build unchanged, and the other device-tree helpers, the
+  `dcache-range-ops` probe in `emu68_features.h` and the DMA memory's reading
+  of `/memory`'s `reg` convert their cells the same way. A caller that reads cells
+  itself converts them with `be32()` too. On m68k all of it compiles to the same
+  code as before; on a little-endian host the values come out right.
+
+---
+
 # Release notes - emu68-common 2.5.0
 
 Changes since 2.4.0.
@@ -14,11 +32,6 @@ Changes since 2.4.0.
   on m68k, a swap on a little-endian host.
 - **`__be16`/`__be32`/`__be64`** in `types.h`, beside the `__le` types, to name
   the byte order of a field in a wire or register layout.
-- **The device-tree helpers read their cells with `be32()`.** Device-tree cells
-  are big-endian: `DT_GetNumber()` now takes `const __be32 *`, the same type as
-  `const u32 *`, so callers build unchanged. A caller that reads cells itself
-  converts them with `be32()` too. On m68k the helpers compile to the same code
-  as before.
 
 ---
 

@@ -27,7 +27,7 @@ A `struct dma_pool *` handle is valid only for the `dma_alloc`/`dma_zalloc`/`dma
 
 ## Reset guard (`reset_guard.h`)
 
-`reset_guard_install(rg, SysBase, prepare, user, name)` runs a driver "prepare for reset" callback before the Amiga resets, covering the Ctrl-Amiga-Amiga keyboard reset-warning protocol and `ColdReboot()` (C:Reboot, Installer, ...). The `prepare()` callback must be interrupt-safe and is invoked at most once per session. The module is ROM-able and task-less; all mutable state lives in the caller-provided `struct reset_guard`. `reset_guard_remove(rg)` is for expunge only and fails if the `ColdReboot` vector was re-patched by someone else.
+`reset_guard_install(rg, SysBase, prepare, user, name)` runs a driver "prepare for reset" callback before the Amiga resets, covering the Ctrl-Amiga-Amiga keyboard reset-warning protocol and `ColdReboot()` (C:Reboot, Installer, ...). The `prepare()` callback must be interrupt-safe and is invoked at most once per session. The module is ROM-able and task-less; all mutable state lives in the caller-provided `struct reset_guard`. `reset_guard_remove(rg)` is for expunge only and fails if the `ColdReboot` vector was re-patched by someone else. A driver that filesystems sit on calls `reset_guard_set_defer(rg, defer)` after installing: on Ctrl-Amiga-Amiga the handler then calls `defer(user)` instead of `prepare()`, the driver keeps serving the filesystems' last writes, quiesces from its own task and calls `reset_guard_done(rg)`, well inside the keyboard's 10 s. Its `prepare()` then runs on the `ColdReboot()` path only, and `reset_guard_can_wait(rg)` says whether it was called from a task that may wait.
 
 ## DMA cache maintenance (`cache_ops.h`)
 

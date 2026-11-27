@@ -1,8 +1,26 @@
-# Release notes - emu68-common 2.5.1
+# Release notes - emu68-common 2.6.0
 
 Changes since 2.5.0.
 
 ---
+
+## New APIs
+
+- **`reset_guard_set_defer()` and `reset_guard_done()`: a deferred
+  Ctrl-Amiga-Amiga path for drivers that filesystems sit on.** With a defer
+  callback set, the keyboard reset handler calls it instead of `prepare()`
+  and reports nothing; the driver keeps serving I/O, quiesces from its own
+  task once the filesystems have written their data, and then calls
+  `reset_guard_done()`. A driver that shut down inside the handler cut off
+  filesystems such as PFS3, which flush from their own task after their
+  handler ran: their writes never completed, the keyboard waited its full
+  10 s, and the data was lost. The `ColdReboot()` path is unchanged.
+  `struct reset_guard` grew, so drivers that embed it are rebuilt.
+  `reset_guard_can_wait()` tells a deferred driver's `prepare()`, which then
+  runs on the `ColdReboot()` path only, whether it was called from a task that
+  may wait (`C:Reboot`) or from an interrupt or `Disable()`.
+- **`_IsMinListEmpty()`** in `minlist.h`: the empty test for a `MinList`
+  without casting it to `struct List`, which breaks strict aliasing.
 
 ## Changes
 

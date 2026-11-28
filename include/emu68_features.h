@@ -5,7 +5,7 @@
  * emu68_probe_dcache_range_ops(): the raw truth, always asked of the device
  * tree.  Emu68 advertises support for the private LINE-F data-cache range
  * opcodes (the ones cache_ops.h emits inline) as the /emu68 node's
- * "dcache-range-ops" property: one u32 capability revision.  Revision 1 is
+ * "dcache-range-ops" property: one cell, the capability revision.  Revision 1 is
  * the contract this header understands; unknown revisions are treated as
  * unsupported.  The three-state result also distinguishes "not running under
  * Emu68 at all" (no devicetree.resource).
@@ -37,6 +37,8 @@
 #include <exec/types.h>
 #include <proto/exec.h>
 
+#include <byteorder.h>
+
 typedef enum emu68_probe_result
 {
 	EMU68_PROBE_NO_DEVICETREE = -1, /* no devicetree.resource: not running under Emu68 */
@@ -56,11 +58,10 @@ static inline emu68_probe_result emu68_probe_dcache_range_ops(struct ExecBase *S
 
 	emu68_probe_result res = EMU68_PROBE_ABSENT;
 	APTR prop = DT_FindProperty(key, (CONST_STRPTR) "dcache-range-ops");
-	if (prop != NULL && DT_GetPropLen(prop) == sizeof(ULONG))
+	if (prop != NULL && DT_GetPropLen(prop) == sizeof(__be32))
 	{
-		/* one big-endian cell, like phandle/msi-parent (Emu68 writes BE32) */
-		const ULONG *v = DT_GetPropValue(prop);
-		if (*v == 1) /* unknown revisions = incompatible */
+		const __be32 *v = DT_GetPropValue(prop);
+		if (be32(*v) == 1) /* unknown revisions = incompatible */
 			res = EMU68_PROBE_PRESENT;
 	}
 	DT_CloseKey(key);

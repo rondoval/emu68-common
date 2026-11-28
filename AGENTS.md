@@ -61,22 +61,11 @@ __NOLIBBASE__` / `EXEC_BASE_NAME (*(struct ExecBase**)4UL)` idiom).
 
 ## Key Headers
 
-| Header | Purpose |
-|---|---|
-| `debug.h` | `KprintfP`/`Kprintf`/`KprintfT`/`KASSERT`/`PrintPistorm` — one printer per tier over a `RawDoFmt` whose per-byte `putch` sink is set by the backend (`pistorm`: magic `0xdeadbeef` PiStorm hook; `serial`: `debug.lib` `KPutChar`); all compiled out in the `off` backend. Sink from `EMU68_DEBUG_BACKEND`, tier from `EMU68_TIER` (see Build) |
-| `emu68_features.h` | Runtime firmware-capability detection: `emu68_probe_dcache_range_ops()` (raw three-state probe of the `/emu68` `dcache-range-ops` device-tree property) and `emu68_has_dcache_range_ops()` (the driver init gate; folds to `TRUE` under `EMU68_FORCE_LVO_CACHE_OPS`) |
-| `dma_mem.h` | DMA-memory facility: `dma_mem_init` / `dma_addr_reachable` (bounce-buffer predicate) and a region-restricted `dma_pool` (`dma_pool_create`/`dma_alloc`/`dma_zalloc`/`dma_free`) that always allocates from DMA-reachable Emu68 RAM |
-| `slab.h` | Fixed-size object slab allocator (`slab_cache_init`/alloc/free), optionally backed by a `dma_mem` pool for DMA-reachable objects |
-| `memory.h` | Exec pool helpers (`pool_alloc`/`pool_zalloc`/`pool_free`) and the freestanding `memset`/`memcpy`/`memmove`/`memcmp` the compiler may synthesise at `-O3` in this `-nostdlib` tree (`memcmp` in `memory.c`, the others asm: `memcpy_movem.S`, `memmove_movem.S`, `memset_movem.S`). `memcpy` is not overlap-safe in either direction |
-| `perf.h` | Instance-based per-stage timing (`PERF_T0`/`PERF_ADD` probes, `perf_report()` delta lines) and value histograms (`struct perf_hist`, `PERF_HIST_ADD`/`perf_hist_report()`); embed the counters in the caller's context (ROM-able, no globals); probes compile out below the `PROFILE` tier while the storage stays. Reduce captures with `scripts/perf-report.py` — it parses the timing grammar only and ignores the `hist` lines |
-| `reset_guard.h` | `reset_guard_install`/`reset_guard_remove` — run a driver "prepare for reset" callback before the Amiga resets (Ctrl-A-A warning and `ColdReboot()`) |
-| `hw_claim.h` | `hw_claim_take`/`hw_claim_release` — one driver at a time on hardware without a PCI owner field, by a public semaphore named after it (the devicetree node name) |
-| `iomem.h` | Volatile little-endian MMIO accessors (`mmio_read/write{8,16,32}`, `mmio_update/clear/set{16,32}`) |
-| `devtree.h` | Thin wrappers around `devicetree.resource` API |
-| `bcm_gpio.h` | BCM2711 GPIO helpers (set pull, alternate function, output level) |
-| `types.h`, `bits.h`, `byteorder.h`, `timing.h` | Fixed-width/`__le` types + branch hints, bit/alignment ops, endian conversion, busy-wait delay primitives |
-| `errors.h`, `minlist.h`, `strutil.h`, `format.h` | `errno`-style codes, `_NewMinList`, bounded string compares plus standard `strncmp`/`strlen`/`strlcpy` and `strfit`, `_SNPrintf`/`_VSNPrintf` |
-| `prefs.h` | `ENV:*.prefs` files: `prefs_open`/`prefs_next`/`prefs_close` (`prefs_file.c`, the only part that needs `dos.library`), `prefs_split`, `prefs_bool`, `prefs_number` (`prefs.c`, pure strings). New settings readers use these, not their own loop |
+The headers are in `include/`; each says in its comments what it holds. What they leave out:
+
+- `memcpy` (`memory.h`) is not overlap-safe in either direction.
+- New settings readers use `prefs.h`, not their own loop.
+- `scripts/perf-report.py` parses `perf.h`'s timing lines only and ignores the `hist` lines.
 
 ## Code Handling
 

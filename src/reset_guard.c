@@ -25,6 +25,9 @@
 
 #define LVO_COLDREBOOT (-726)
 
+/* SR's supervisor bit, as SetSR() returns it */
+#define SR_SUPERVISOR 0x2000
+
 /* Generated ColdReboot stub: movea.l #rg,a1 ; jmp entry.l */
 #define TRAMP_WORDS  6
 #define TRAMP_BYTES  (TRAMP_WORDS * sizeof(UWORD))
@@ -57,14 +60,59 @@ static void reset_guard_coldreboot_entry(struct reset_guard *rg asm("a1"))
 	             : "a0", "a6");
 }
 
-/* Keyboard reset handler: keyboard.device calls is_Code with is_Data in A1,
- * potentially in interrupt context — prepare() is interrupt-safe by
- * contract, and DONE is a SendIO whose reply lands on the PA_IGNORE port. */
-static void reset_guard_kbd_handler(struct reset_guard *rg asm("a1"))
+/* KBD_RESETHANDLERDONE, once: a SendIO whose reply lands on the PA_IGNORE
+ * port, so it is safe from interrupt context too. */
+static void reset_guard_send_done(struct reset_guard *rg)
 {
 	struct ExecBase *SysBase = rg->rg_SysBase;
+	Disable();
+	UBYTE already = rg->rg_DoneSent;
+	rg->rg_DoneSent = 1;
+	Enable();
+
+	if (!already)
+		SendIO((struct IORequest *)&rg->rg_DoneIO);
+}
+
+/* Keyboard reset handler: keyboard.device calls is_Code with is_Data in A1,
+ * potentially in interrupt context.  Deferred: hand the reset to the driver,
+ * which reports done itself.  Inline: prepare() (interrupt-safe by contract),
+ * then done. */
+static void reset_guard_kbd_handler(struct reset_guard *rg asm("a1"))
+{
+	if (rg->rg_Defer)
+	{
+		rg->rg_Defer(rg->rg_User);
+		return;
+	}
 	reset_guard_run_prepare(rg);
-	SendIO((struct IORequest *)&rg->rg_DoneIO);
+	reset_guard_send_done(rg);
+}
+
+BOOL reset_guard_can_wait(struct reset_guard *rg)
+{
+	struct ExecBase *SysBase = rg->rg_SysBase;
+
+	if (SetSR(0, 0) & SR_SUPERVISOR) /* mask 0: reads the SR, changes nothing */
+		return FALSE;
+	if (SysBase->IDNestCnt >= 0)     /* inside Disable() */
+		return FALSE;
+	return SysBase->ThisTask != NULL;
+}
+
+void reset_guard_set_defer(struct reset_guard *rg, reset_guard_defer_t defer)
+{
+	rg->rg_Defer = defer;
+}
+
+void reset_guard_done(struct reset_guard *rg)
+{
+	struct ExecBase *SysBase = rg->rg_SysBase;
+	Disable();
+	rg->rg_Prepared = 1;
+	Enable();
+
+	reset_guard_send_done(rg);
 }
 
 /* Submit a keyboard.device command on the signal-less port and busy-poll
